@@ -26,54 +26,43 @@ namespace SqlDictionaryTest
 
             Console.WriteLine("Connecting...");
 
-            var dic = new SqlDictionary<string, string>();
-            dic.Load(connectionString, tableName, keyName, valueName);
+            var dic1 = new SqlDictionary<int, int>();
+            dic1.Load(connectionString, "intint", keyName, valueName);
+            dic1.Clear();
+            dic1.Add(1, 2);
+            dic1.Remove(1);
+            dic1[1] = 3;
+            dic1[1] = 4;
 
-            Console.WriteLine("Current Content");
-            Console.WriteLine("---------------");
-            foreach (var item in dic)
-            {
-                Console.WriteLine($"{item.Key}:{item.Value}");
-            }
-            Console.WriteLine("---------------");
+            var dic2 = new SqlDictionary<int, string>();
+            dic2.Load(connectionString, "intstring", keyName, valueName);
+            dic2.Clear();
+            dic2.Add(1, "2");
+            dic2.Remove(1);
+            dic2[1] = "3";
+            dic2[1] = "4";
 
-            Console.WriteLine("Reading Commands");
-            Console.WriteLine("---------------");
+            var dic3 = new SqlDictionary<string, string>();
+            dic3.Load(connectionString, "stringstring", keyName, valueName);
+            dic3.Clear();
+            dic3.Add("1", "2");
+            dic3.Remove("1");
+            dic3["1"] = "3";
+            dic3["1"] = "4";
 
-            var streamin = Console.OpenStandardInput();
-            var reader = new StreamReader(streamin);
-            while (reader.EndOfStream == false)
-            {
-                var line = reader.ReadLine();
-                if (line == null || line.ToLower() == "end")
-                {
-                    return;
-                }
+            var dic4 = new SqlDictionary<string, SomeDto>();
+            dic4.Load(connectionString, "stringdto", keyName, valueName);
+            dic4.Clear();
+            dic4.Add("1", new SomeDto() { Id = 1, Name = "SomeName" });
+            dic4.Remove("1");
+            dic4["1"] = new SomeDto() { Id = 2, Name = "SomeName" };
+            dic4["1"] = new SomeDto() { Id = 3, Name = "SomeName" };
+        }
 
-                var p = line.Split(':');
-                if (p[0].ToLower() == "clear")
-                {
-                    Console.WriteLine("Clearing...");
-                    dic.Clear();
-                }
-                else if (p[0].ToLower() == "add")
-                {
-                    Console.WriteLine($"Adding {p[1]}:{p[2]}");
-                    dic.Add(p[1], p[2]);
-                }
-                else if (p[0].ToLower() == "remove")
-                {
-                    Console.WriteLine($"Removing {p[1]}");
-                    dic.Remove(p[1]);
-                }
-                else if (p[0].ToLower() == "set")
-                {
-                    Console.WriteLine($"Setting {p[1]}:{p[2]}");
-                    dic[p[1]] = p[2];
-                }
-            }
-
-            Console.WriteLine("---------------");
+        public class SomeDto
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
         }
     }
 }
