@@ -570,7 +570,30 @@ COMMIT TRANSACTION;";
 
         object Convert(Type target, string value)
         {
-            if (target == typeof(string))
+            if (target.IsArray)
+            {
+                var values = value.Split(',');
+                var elementType = target.GetElementType();
+                if (elementType.IsEnum)
+                {
+                    var cast = typeof(Enumerable).GetMethod("Cast").MakeGenericMethod(elementType);
+                    var toarray = typeof(Enumerable).GetMethod("ToArray").MakeGenericMethod(elementType);
+                    return toarray.Invoke(null, new[] { cast.Invoke(null, new[] { values.Select(x => Enum.Parse(elementType, x)) }) });
+                }
+                else if (elementType.IsPrimitive)
+                {
+                    return values.Select(x =>
+                    {
+                        var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+                        return parse.Invoke(null, new[] { value });
+                    }).ToArray();
+                }
+                else
+                {
+                    throw new InvalidOperationException();
+                }
+            }
+            else if (target == typeof(string))
             {
                 return value;
             }
