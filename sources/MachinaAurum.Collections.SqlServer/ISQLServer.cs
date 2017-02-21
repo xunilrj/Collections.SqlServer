@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace MachinaAurum.Collections.SqlServer
 {
@@ -13,5 +14,6 @@ namespace MachinaAurum.Collections.SqlServer
 
         void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item);
         TItem Dequeue<TItem>(string queue);
+        IEnumerable<object> DequeueGroup(string queue);
     }
 }

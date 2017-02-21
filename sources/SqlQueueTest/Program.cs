@@ -1,6 +1,7 @@
 ﻿using MachinaAurum.Collections.SqlServer;
 using System;
 using System.Diagnostics;
+using System.Linq;
 
 namespace SqlQueueTest
 {
@@ -47,6 +48,12 @@ namespace SqlQueueTest
             Debug.Assert(item2.Id == 2);
             Console.WriteLine("item1.Id == 3");
             Debug.Assert(item3.Id == 3);
+
+            queue.Enqueue(item1);
+            var items = queue.DequeueGroup();
+
+            Debug.Assert(items.Count() == 1);
+            Debug.Assert((items.Single() as ItemDto).Id == 1);
 
             Console.WriteLine("OK!");
         }

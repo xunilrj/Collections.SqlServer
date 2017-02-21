@@ -1,4 +1,6 @@
-﻿namespace MachinaAurum.Collections.SqlServer
+﻿using System.Collections.Generic;
+
+namespace MachinaAurum.Collections.SqlServer
 {
     public class SqlQueue
     {
@@ -76,6 +78,11 @@ END
         public T Dequeue<T>()
         {
             return (T)Server.Dequeue<T>(QueueDestination);
+        }
+
+        public IEnumerable<object> DequeueGroup()
+        {
+            return Server.DequeueGroup(QueueDestination);
         }
     }
 }

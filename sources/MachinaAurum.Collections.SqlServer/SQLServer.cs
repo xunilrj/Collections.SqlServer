@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Xml;
 using System.Xml.Serialization;
 
 namespace MachinaAurum.Collections.SqlServer
@@ -247,14 +250,10 @@ WHEN NOT MATCHED THEN
             var sendCmd = $@"BEGIN TRANSACTION; 
 DECLARE @cid UNIQUEIDENTIFIER;
 DECLARE @xml XML = @message;
-BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] 
-    TO SERVICE N'{serviceDestination}' 
-    ON CONTRACT [{contract}] 
-    WITH ENCRYPTION = OFF; 
+BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] TO SERVICE N'{serviceDestination}' ON CONTRACT [{contract}] WITH ENCRYPTION = OFF; 
 SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml); 
 END CONVERSATION @cid; 
-COMMIT TRANSACTION;
-";
+COMMIT TRANSACTION;";
             using (var connection = GetConnection())
             {
                 GuaranteeOpen(connection);
@@ -274,34 +273,24 @@ COMMIT TRANSACTION;
                 GuaranteeOpen(connection);
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = $@"DECLARE  
-@h UNIQUEIDENTIFIER, 
-@t sysname, 
-@b varbinary(MAX) 
-WAITFOR (RECEIVE TOP(1)
-    @h = conversation_handle, 
-    @t = message_type_name, 
-    @b = message_body
-    FROM {queue})
-SELECT @h, @t, @b";
+                    command.CommandText = $@"WAITFOR (RECEIVE Top(1) * FROM {queue})";
 
                     using (var reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                         {
-                            var h = reader.GetGuid(0);
-                            var t = reader.GetString(1);
+                            var t = reader.GetString(10);
 
-                            if(t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
+                            if (t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
                             {
                                 return Dequeue<TItem>(queue);
                             }
 
                             var body = "";
                             var buffer = new byte[4000];
-                            if (reader.IsDBNull(2) == false)
+                            if (reader.IsDBNull(13) == false)
                             {
-                                var size = reader.GetBytes(2, 0, buffer, 0, 4000);
+                                var size = reader.GetBytes(13, 0, buffer, 0, 4000);
                                 body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
                                 return DeserializeXml<TItem>(body);
                             }
@@ -315,6 +304,73 @@ SELECT @h, @t, @b";
             return default(TItem);
         }
 
+        public IEnumerable<object> DequeueGroup(string queue)
+        {
+            var list = new List<object>();
+
+            bool foundMessage = false;
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = $@"WAITFOR (RECEIVE Top(100) * FROM {queue})";
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var t = reader.GetString(10);
+
+                            if (t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
+                            {
+                                if (!foundMessage)
+                                {
+                                    return DequeueGroup(queue);
+                                }
+                                else
+                                {
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                foundMessage = true;
+                                var body = "";
+                                var buffer = new byte[4000];
+                                if (reader.IsDBNull(13) == false)
+                                {
+                                    var size = reader.GetBytes(13, 0, buffer, 0, 4000);
+                                    body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
+
+                                    var doc = new XmlDocument();
+                                    doc.LoadXml(body);
+                                    var tagName = doc.FirstChild.Name;
+                                    var type = FindType(tagName);
+                                    var item = DeserializeXml(type, body);
+                                    list.Add(item);
+                                }
+                            }
+                        }
+
+                        reader.Close();
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        private static Type FindType(string typeName)
+        {
+            return AppDomain.CurrentDomain.GetAssemblies().SelectMany(x =>
+            {
+                try { return x.GetTypes(); }
+                catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null).ToArray(); }
+            }).Where(x => x.Name == typeName)
+              .FirstOrDefault();
+        }
+
         string SerializeXml(object item)
         {
             using (var stringWriter = new StringWriter())
@@ -326,15 +382,19 @@ SELECT @h, @t, @b";
             }
         }
 
-        T DeserializeXml<T>(string xml)
+        object DeserializeXml(Type type, string xml)
         {
-            //var r = xml == "<ItemDto xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><Id>1</Id></ItemDto>";
             xml = $"<?xml version=\"1.0\" encoding=\"utf-16\"?>{xml}";
             using (var stringReader = new StringReader(xml))
             {
-                var xmlSerializer = new XmlSerializer(typeof(T));
-                return (T)xmlSerializer.Deserialize(stringReader);
+                var xmlSerializer = new XmlSerializer(type);
+                return xmlSerializer.Deserialize(stringReader);
             }
+        }
+
+        T DeserializeXml<T>(string xml)
+        {
+            return (T)DeserializeXml(typeof(T), xml);
         }
 
         public void Execute(string sql)
