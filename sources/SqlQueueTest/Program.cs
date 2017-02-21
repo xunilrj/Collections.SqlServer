@@ -69,6 +69,8 @@ namespace SqlQueueTest
         public float Float { get; set; }
         public string Text { get; set; }
 
+        public DateTime DateTime { get; set; }
+
         public ChildDto Child { get; set; }
 
         public ItemDto(int id)
@@ -78,6 +80,8 @@ namespace SqlQueueTest
             Float = 3.1f;
             Double = 4.2;
             Text = "TEXT";
+
+            DateTime = DateTime.UtcNow;
 
             Child = new ChildDto(99);
         }

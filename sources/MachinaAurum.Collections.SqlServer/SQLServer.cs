@@ -377,15 +377,20 @@ COMMIT TRANSACTION;";
             {
                 var writer = new XmlTextWriter(stringWriter);
 
-                WriteObject(null, item, writer);
+                WriteObject(null, item, writer, 0);
 
                 var xml = stringWriter.GetStringBuilder().ToString();
                 return xml;
             }
         }
 
-        private void WriteObject(string name, object item, XmlTextWriter writer)
+        private void WriteObject(string name, object item, XmlTextWriter writer, int depth)
         {
+            if (depth > 10)
+            {
+                return;
+            }
+
             var type = item.GetType();
             var properties = type.GetProperties();
 
@@ -404,15 +409,37 @@ COMMIT TRANSACTION;";
                 {
                     if (WriteAsAttribute(property))
                     {
-                        writer.WriteAttributeString(property.Name, property.GetValue(item).ToString());
+                        writer.WriteAttributeString(property.Name, ToString(property, property.GetValue(item)));
                     }
                     else
                     {
-                        WriteObject(property.Name, property.GetValue(item), writer);
+                        WriteObject(property.Name, property.GetValue(item), writer, depth + 1);
                     }
                 }
             }
             writer.WriteEndElement();
+        }
+
+        string ToString(PropertyInfo info, object value)
+        {
+            if (info.PropertyType.IsPrimitive)
+            {
+                return value.ToString();
+            }
+            else if (info.PropertyType == typeof(string))
+            {
+                return value.ToString();
+            }
+            else if (info.PropertyType == typeof(DateTime))
+            {
+                return ((DateTime)value).ToString("o");
+            }
+            else if (info.PropertyType == typeof(DateTimeOffset))
+            {
+                return ((DateTime)value).ToString("o");
+            }
+
+            throw new InvalidProgramException();
         }
 
         bool WriteAsAttribute(PropertyInfo info)
@@ -422,6 +449,14 @@ COMMIT TRANSACTION;";
                 return true;
             }
             else if (info.PropertyType == typeof(string))
+            {
+                return true;
+            }
+            else if (info.PropertyType == typeof(DateTime))
+            {
+                return true;
+            }
+            else if (info.PropertyType == typeof(DateTimeOffset))
             {
                 return true;
             }
@@ -481,12 +516,15 @@ COMMIT TRANSACTION;";
                 }
             } while (reader.MoveToNextAttribute());
 
-            reader.MoveToElement();
-            reader.Read();
-
-            if (reader.Depth > depth)
+            if (depth < 10)
             {
-                var childobj = ReadObject(reader, obj, depth + 1);
+                reader.MoveToElement();
+                reader.Read();
+
+                if (reader.Depth > depth)
+                {
+                    var childobj = ReadObject(reader, obj, depth + 1);
+                }
             }
 
             return obj;
