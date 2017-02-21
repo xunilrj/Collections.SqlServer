@@ -367,7 +367,7 @@ COMMIT TRANSACTION;";
             {
                 try { return x.GetTypes(); }
                 catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null).ToArray(); }
-            }).Where(x => x.Name == typeName)
+            }).Where(x => x.Name == typeName && x.GetCustomAttribute<SerializableAttribute>() != null)
               .FirstOrDefault();
         }
 

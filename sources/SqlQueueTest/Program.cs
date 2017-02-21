@@ -59,6 +59,7 @@ namespace SqlQueueTest
         }
     }
 
+    [Serializable]
     public class ItemDto
     {
         public int Id { get; set; }
