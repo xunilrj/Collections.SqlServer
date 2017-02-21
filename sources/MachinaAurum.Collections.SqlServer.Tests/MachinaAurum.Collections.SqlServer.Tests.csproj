@@ -61,6 +61,7 @@
       <HintPath>..\packages\System.Data.SQLite.Linq.1.0.104.0\lib\net451\System.Data.SQLite.Linq.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="System.Xml" />
     <Reference Include="xunit.abstractions, Version=2.0.0.0, Culture=neutral, PublicKeyToken=8d05b1bb7a6fdb6c, processorArchitecture=MSIL">
       <HintPath>..\packages\xunit.abstractions.2.0.0\lib\net35\xunit.abstractions.dll</HintPath>
       <Private>True</Private>
@@ -87,8 +88,10 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
+    <Compile Include="FakeSqlServer.cs" />
     <Compile Include="SqlDictionaryTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SqlQueueTests.cs" />
     <Compile Include="SQLServerTests.cs" />
   </ItemGroup>
   <ItemGroup>

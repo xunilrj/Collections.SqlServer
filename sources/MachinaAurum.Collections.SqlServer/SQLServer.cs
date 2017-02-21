@@ -2,8 +2,10 @@
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
+using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Xml.Serialization;
 
 namespace MachinaAurum.Collections.SqlServer
 {
@@ -236,6 +238,114 @@ WHEN NOT MATCHED THEN
                     {
                         onError();
                     }
+                }
+            }
+        }
+
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item)
+        {
+            var sendCmd = $@"BEGIN TRANSACTION; 
+DECLARE @cid UNIQUEIDENTIFIER;
+DECLARE @xml XML = @message;
+BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] 
+    TO SERVICE N'{serviceDestination}' 
+    ON CONTRACT [{contract}] 
+    WITH ENCRYPTION = OFF; 
+SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml); 
+END CONVERSATION @cid; 
+COMMIT TRANSACTION;
+";
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sendCmd;
+                    AddWithValue(command, "@message", SerializeXml(item));
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public TItem Dequeue<TItem>(string queue)
+        {
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = $@"DECLARE  
+@h UNIQUEIDENTIFIER, 
+@t sysname, 
+@b varbinary(MAX) 
+WAITFOR (RECEIVE TOP(1)
+    @h = conversation_handle, 
+    @t = message_type_name, 
+    @b = message_body
+    FROM {queue})
+SELECT @h, @t, @b";
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var h = reader.GetGuid(0);
+                            var t = reader.GetString(1);
+
+                            if(t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
+                            {
+                                return Dequeue<TItem>(queue);
+                            }
+
+                            var body = "";
+                            var buffer = new byte[4000];
+                            if (reader.IsDBNull(2) == false)
+                            {
+                                var size = reader.GetBytes(2, 0, buffer, 0, 4000);
+                                body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
+                                return DeserializeXml<TItem>(body);
+                            }
+                        }
+
+                        reader.Close();
+                    }
+                }
+            }
+
+            return default(TItem);
+        }
+
+        string SerializeXml(object item)
+        {
+            using (var stringWriter = new StringWriter())
+            {
+                var xmlSerializer = new XmlSerializer(item.GetType());
+                xmlSerializer.Serialize(stringWriter, item);
+                var xml = stringWriter.GetStringBuilder().ToString();
+                return xml;
+            }
+        }
+
+        T DeserializeXml<T>(string xml)
+        {
+            //var r = xml == "<ItemDto xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><Id>1</Id></ItemDto>";
+            xml = $"<?xml version=\"1.0\" encoding=\"utf-16\"?>{xml}";
+            using (var stringReader = new StringReader(xml))
+            {
+                var xmlSerializer = new XmlSerializer(typeof(T));
+                return (T)xmlSerializer.Deserialize(stringReader);
+            }
+        }
+
+        public void Execute(string sql)
+        {
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    command.ExecuteNonQuery();
                 }
             }
         }

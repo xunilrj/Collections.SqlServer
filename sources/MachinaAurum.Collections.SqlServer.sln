@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MachinaAurum.Collections.Sq
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlDictionaryTest", "SqlDictionaryTest\SqlDictionaryTest.csproj", "{15A08B09-02E9-4BCC-9FBA-901726FD554D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlQueueTest", "SqlQueueTest\SqlQueueTest.csproj", "{9D5D4E41-EED6-402C-8C15-E9097106352E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{15A08B09-02E9-4BCC-9FBA-901726FD554D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{15A08B09-02E9-4BCC-9FBA-901726FD554D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{15A08B09-02E9-4BCC-9FBA-901726FD554D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
