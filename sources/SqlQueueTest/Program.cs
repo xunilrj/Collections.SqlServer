@@ -73,6 +73,8 @@ namespace SqlQueueTest
 
         public ChildDto Child { get; set; }
 
+        public ENUM[] Options { get; set; }
+
         public ItemDto(int id)
         {
             Int = id;
@@ -83,8 +85,15 @@ namespace SqlQueueTest
 
             DateTime = DateTime.UtcNow;
 
+            Options = new[] { ENUM.A, ENUM.B };
+
             Child = new ChildDto(99);
         }
+    }
+
+    public enum ENUM
+    {
+        A, B, C
     }
 
     public class ChildDto

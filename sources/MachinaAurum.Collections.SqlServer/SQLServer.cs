@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
@@ -403,6 +404,7 @@ COMMIT TRANSACTION;";
                 writer.WriteStartElement(name);
             }
 
+            var list = new List<PropertyInfo>();
             foreach (var property in properties)
             {
                 if (property.CanRead)
@@ -413,16 +415,37 @@ COMMIT TRANSACTION;";
                     }
                     else
                     {
-                        WriteObject(property.Name, property.GetValue(item), writer, depth + 1);
+                        list.Add(property);
                     }
                 }
             }
+
+            foreach (var property in list)
+            {
+                WriteObject(property.Name, property.GetValue(item), writer, depth + 1);
+            }
+
             writer.WriteEndElement();
         }
 
         string ToString(PropertyInfo info, object value)
         {
-            if (info.PropertyType.IsPrimitive)
+            if (info.PropertyType.IsArray)
+            {
+                if (info.PropertyType.GetElementType().IsEnum)
+                {
+                    return string.Join(",", ((IEnumerable)value).OfType<object>().Select(x => x.ToString()).ToArray());
+                }
+                else if (info.PropertyType.GetElementType().IsPrimitive)
+                {
+                    return string.Join(",", ((IEnumerable)value).OfType<object>().Select(x => x.ToString()).ToArray());
+                }
+                else
+                {
+                    throw new InvalidProgramException();
+                }
+            }
+            else if (info.PropertyType.IsPrimitive)
             {
                 return value.ToString();
             }
@@ -444,7 +467,22 @@ COMMIT TRANSACTION;";
 
         bool WriteAsAttribute(PropertyInfo info)
         {
-            if (info.PropertyType.IsPrimitive)
+            if (info.PropertyType.IsArray)
+            {
+                if (info.PropertyType.GetElementType().IsEnum)
+                {
+                    return true;
+                }
+                else if (info.PropertyType.GetElementType().IsPrimitive)
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else if (info.PropertyType.IsPrimitive)
             {
                 return true;
             }
