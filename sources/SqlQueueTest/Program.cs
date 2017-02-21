@@ -30,9 +30,9 @@ namespace SqlQueueTest
             var queue = new SqlQueue(connectionString, serviceOrigin, serviceDestination, contract, messageType, queueDestination);
             queue.CreateObjects("QUEUEORIGIN");
 
-            var item1 = new ItemDto() { Id = 1 };
-            var item2 = new ItemDto() { Id = 2 };
-            var item3 = new ItemDto() { Id = 3 };
+            var item1 = new ItemDto(1);
+            var item2 = new ItemDto(2);
+            var item3 = new ItemDto(3);
 
             queue.Enqueue(item1);
             queue.Enqueue(item2);
@@ -43,17 +43,18 @@ namespace SqlQueueTest
             item3 = queue.Dequeue<ItemDto>();
 
             Console.WriteLine("item1.Id == 1");
-            Debug.Assert(item1.Id == 1);
+            Debug.Assert(item1.Int == 1);
+            Debug.Assert(item1.Long == 5);
             Console.WriteLine("item1.Id == 2");
-            Debug.Assert(item2.Id == 2);
+            Debug.Assert(item2.Int == 2);
             Console.WriteLine("item1.Id == 3");
-            Debug.Assert(item3.Id == 3);
+            Debug.Assert(item3.Int == 3);
 
             queue.Enqueue(item1);
             var items = queue.DequeueGroup();
 
             Debug.Assert(items.Count() == 1);
-            Debug.Assert((items.Single() as ItemDto).Id == 1);
+            Debug.Assert((items.Single() as ItemDto).Int == 1);
 
             Console.WriteLine("OK!");
         }
@@ -62,6 +63,45 @@ namespace SqlQueueTest
     [Serializable]
     public class ItemDto
     {
-        public int Id { get; set; }
+        public int Int { get; set; }
+        public long Long { get; set; }
+        public double Double { get; set; }
+        public float Float { get; set; }
+        public string Text { get; set; }
+
+        public ChildDto Child { get; set; }
+
+        public ItemDto(int id)
+        {
+            Int = id;
+            Long = 5;
+            Float = 3.1f;
+            Double = 4.2;
+            Text = "TEXT";
+
+            Child = new ChildDto(99);
+        }
+    }
+
+    public class ChildDto
+    {
+        public int Int { get; set; }
+
+        public Child2Dto Child2 { get; set; }
+
+        public ChildDto(int id)
+        {
+            Int = id;
+            Child2 = new Child2Dto("CHILD2");
+        }
+    }
+
+    public class Child2Dto
+    {
+        public string Text { get; set; }
+        public Child2Dto(string text)
+        {
+            Text = text;
+        }
     }
 }

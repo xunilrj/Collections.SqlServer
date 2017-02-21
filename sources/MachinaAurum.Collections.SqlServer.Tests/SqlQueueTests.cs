@@ -14,7 +14,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
 
             queue.Enqueue(2);
 
-            Assert.Equal(2, queues["SERVICEORIGIN"].Count);
+            Assert.Equal(2, queues["QUEUEDESTINATION"].Count);
         }
 
         [Fact]
@@ -26,7 +26,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
 
             var item = queue.Dequeue<int>();
             Assert.Equal(1, item);
-            Assert.Equal(0, queues["SERVICEORIGIN"].Count);
+            Assert.Equal(0, queues["QUEUEDESTINATION"].Count);
         }
 
         private static void CreateQueue(out Dictionary<string, Queue<object>> queues, out SqlQueue queue)
@@ -34,8 +34,8 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             var q = new Queue<object>();
             q.Enqueue(1);
             queues = new Dictionary<string, Queue<object>>();
-            queues.Add("SERVICEORIGIN", q);
-            var fake = new FakeSqlServerBroker(queues);
+            queues.Add("QUEUEDESTINATION", q);
+            var fake = new FakeSqlServerBroker(queues, "QUEUEDESTINATION");
 
             queue = new SqlQueue(fake, "SERVICEORIGIN", "SERVICEDESTINATION", "CONTRACT", "MESSAGETYPE", "QUEUEDESTINATION");
         }

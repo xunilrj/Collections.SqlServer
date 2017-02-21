@@ -1,6 +1,7 @@
 ﻿using MachinaAurum.Collections.SqlServer;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -28,11 +29,24 @@ namespace SqlDictionaryTest
 
             var dic1 = new SqlDictionary<int, int>();
             dic1.Load(connectionString, "intint", keyName, valueName);
+            Console.WriteLine("SqlDictionary.Clear");
             dic1.Clear();
+            Console.WriteLine("dic1.Count == 0");
+            Debug.Assert(dic1.Count == 0);
             dic1.Add(1, 2);
+            Console.WriteLine("dic1.Count == 1");
+            Debug.Assert(dic1.Count == 1);
+            Console.WriteLine("dic1[1] == 2");
+            Debug.Assert(dic1[1] == 2);
             dic1.Remove(1);
+            Console.WriteLine("dic1.Count == 0");
+            Debug.Assert(dic1.Count == 0);
             dic1[1] = 3;
+            Console.WriteLine("dic1[1] == 3");
+            Debug.Assert(dic1[1] == 3);
             dic1[1] = 4;
+            Console.WriteLine("dic1[1] == 4");
+            Debug.Assert(dic1[1] == 4);
 
             var dic2 = new SqlDictionary<int, string>();
             dic2.Load(connectionString, "intstring", keyName, valueName);
@@ -57,6 +71,8 @@ namespace SqlDictionaryTest
             dic4.Remove("1");
             dic4["1"] = new SomeDto() { Id = 2, Name = "SomeName" };
             dic4["1"] = new SomeDto() { Id = 3, Name = "SomeName" };
+
+            Console.WriteLine("OK!");
         }
 
         public class SomeDto

@@ -375,20 +375,133 @@ COMMIT TRANSACTION;";
         {
             using (var stringWriter = new StringWriter())
             {
-                var xmlSerializer = new XmlSerializer(item.GetType());
-                xmlSerializer.Serialize(stringWriter, item);
+                var writer = new XmlTextWriter(stringWriter);
+
+                WriteObject(null, item, writer);
+
                 var xml = stringWriter.GetStringBuilder().ToString();
                 return xml;
             }
         }
 
+        private void WriteObject(string name, object item, XmlTextWriter writer)
+        {
+            var type = item.GetType();
+            var properties = type.GetProperties();
+
+            if (string.IsNullOrEmpty(name))
+            {
+                writer.WriteStartElement(type.Name);
+            }
+            else
+            {
+                writer.WriteStartElement(name);
+            }
+
+            foreach (var property in properties)
+            {
+                if (property.CanRead)
+                {
+                    if (WriteAsAttribute(property))
+                    {
+                        writer.WriteAttributeString(property.Name, property.GetValue(item).ToString());
+                    }
+                    else
+                    {
+                        WriteObject(property.Name, property.GetValue(item), writer);
+                    }
+                }
+            }
+            writer.WriteEndElement();
+        }
+
+        bool WriteAsAttribute(PropertyInfo info)
+        {
+            if (info.PropertyType.IsPrimitive)
+            {
+                return true;
+            }
+            else if (info.PropertyType == typeof(string))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         object DeserializeXml(Type type, string xml)
         {
-            xml = $"<?xml version=\"1.0\" encoding=\"utf-16\"?>{xml}";
             using (var stringReader = new StringReader(xml))
             {
-                var xmlSerializer = new XmlSerializer(type);
-                return xmlSerializer.Deserialize(stringReader);
+                var reader = new XmlTextReader(stringReader);
+                reader.Read();
+                return ReadObject(reader, null, 0);
+            }
+        }
+
+        private object ReadObject(XmlTextReader reader, object parent, int depth)
+        {
+            string propertyName = reader.Name;
+
+            Type type = null;
+
+            if (parent == null)
+            {
+                type = FindType(propertyName);
+            }
+            else
+            {
+                type = parent.GetType().GetProperty(propertyName).PropertyType;
+            }
+
+            var obj = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
+
+            if (parent == null)
+            {
+                parent = obj;
+            }
+            else
+            {
+                parent.GetType().GetProperty(propertyName).SetValue(parent, obj);
+            }
+
+            reader.MoveToFirstAttribute();
+
+            do
+            {
+                var attributeName = reader.Name;
+                var value = reader.Value;
+
+                var property = type.GetProperty(attributeName);
+                if (property.CanWrite)
+                {
+                    property.SetValue(obj, Convert(property.PropertyType, value));
+                }
+            } while (reader.MoveToNextAttribute());
+
+            reader.MoveToElement();
+            reader.Read();
+
+            if (reader.Depth > depth)
+            {
+                var childobj = ReadObject(reader, obj, depth + 1);
+            }
+
+            return obj;
+        }
+
+        object Convert(Type target, string value)
+        {
+            if (target == typeof(string))
+            {
+                return value;
+            }
+            else
+            {
+                var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+                return parse.Invoke(null, new[] { value });
             }
         }
 

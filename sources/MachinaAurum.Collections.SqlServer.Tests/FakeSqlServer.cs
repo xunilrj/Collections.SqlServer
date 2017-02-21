@@ -69,10 +69,12 @@ namespace MachinaAurum.Collections.SqlServer.Tests
     public class FakeSqlServerBroker : ISQLServer
     {
         IDictionary<string, Queue<object>> Queues;
+        string QueueDestination;
 
-        public FakeSqlServerBroker(IDictionary<string, Queue<object>> queues)
+        public FakeSqlServerBroker(IDictionary<string, Queue<object>> queues, string queueDestination)
         {
             Queues = queues;
+            QueueDestination = queueDestination;
         }
 
         public void Add<TKey, TValue>(string table, string keyColumn, string valueColumn, TKey key, TValue value, Action onSuccess, Action onError)
@@ -88,10 +90,10 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item)
         {
             Queue<object> queue = null;
-            if (Queues.TryGetValue(serviceOrigin, out queue) == false)
+            if (Queues.TryGetValue(QueueDestination, out queue) == false)
             {
                 queue = new Queue<object>();
-                Queues.Add(serviceOrigin, queue);
+                Queues.Add(QueueDestination, queue);
             }
 
             queue.Enqueue(item);
