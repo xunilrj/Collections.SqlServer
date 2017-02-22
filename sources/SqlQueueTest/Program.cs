@@ -47,6 +47,12 @@ namespace SqlQueueTest
             Console.WriteLine("item1.Id == 1");
             Debug.Assert(item1.Int == 1);
             Debug.Assert(item1.Long == 5);
+            Debug.Assert(item1.Options.Count() == 2);
+            Debug.Assert(item1.Options[0] == ENUM.A);
+            Debug.Assert(item1.Options[1] == ENUM.B);
+            Debug.Assert(item1.Strings.Count() == 2);
+            Debug.Assert(item1.Strings[0] == "abc");
+            Debug.Assert(item1.Strings[1] == "def");
             Console.WriteLine("item1.Id == 2");
             Debug.Assert(item2.Int == 2);
             Console.WriteLine("item1.Id == 3");
@@ -76,6 +82,7 @@ namespace SqlQueueTest
         public ChildDto Child { get; set; }
 
         public ENUM[] Options { get; set; }
+        public string[] Strings { get; set; }
 
         public ItemDto(int id)
         {
@@ -88,6 +95,7 @@ namespace SqlQueueTest
             DateTime = DateTime.UtcNow;
 
             Options = new[] { ENUM.A, ENUM.B };
+            Strings = new[] { "abc", "def" };
 
             Child = new ChildDto(99);
         }

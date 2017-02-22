@@ -261,7 +261,8 @@ COMMIT TRANSACTION;";
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText = sendCmd;
-                    AddWithValue(command, "@message", SerializeXml(item));
+                    var xml = SerializeXml(item);
+                    AddWithValue(command, "@message", xml);
                     command.ExecuteNonQuery();
                 }
             }
@@ -404,6 +405,23 @@ COMMIT TRANSACTION;";
                 writer.WriteStartElement(name);
             }
 
+            if (item.GetType().IsArray)
+            {
+                var elementType = item.GetType().GetElementType();
+                if (elementType == typeof(string))
+                {
+                    foreach (var arrayitem in (string[])item)
+                    {
+                        writer.WriteStartElement("string");
+                        writer.WriteCData(arrayitem);
+                        writer.WriteEndElement();
+                    }
+                    writer.WriteEndElement();
+                }
+
+                return;
+            }
+
             var list = new List<PropertyInfo>();
             foreach (var property in properties)
             {
@@ -432,11 +450,12 @@ COMMIT TRANSACTION;";
         {
             if (info.PropertyType.IsArray)
             {
-                if (info.PropertyType.GetElementType().IsEnum)
+                var elementType = info.PropertyType.GetElementType();
+                if (elementType.IsEnum)
                 {
                     return string.Join(",", ((IEnumerable)value).OfType<object>().Select(x => x.ToString()).ToArray());
                 }
-                else if (info.PropertyType.GetElementType().IsPrimitive)
+                else if (elementType.IsPrimitive)
                 {
                     return string.Join(",", ((IEnumerable)value).OfType<object>().Select(x => x.ToString()).ToArray());
                 }
@@ -469,13 +488,18 @@ COMMIT TRANSACTION;";
         {
             if (info.PropertyType.IsArray)
             {
-                if (info.PropertyType.GetElementType().IsEnum)
+                var elementType = info.PropertyType.GetElementType();
+                if (elementType.IsEnum)
                 {
                     return true;
                 }
-                else if (info.PropertyType.GetElementType().IsPrimitive)
+                else if (elementType.IsPrimitive)
                 {
                     return true;
+                }
+                else if (elementType == typeof(string))
+                {
+                    return false;
                 }
                 else
                 {
@@ -529,6 +553,30 @@ COMMIT TRANSACTION;";
                 type = parent.GetType().GetProperty(propertyName).PropertyType;
             }
 
+            if (type.IsArray)
+            {
+                reader.ReadStartElement();
+
+                var listofstring = new List<string>();
+                var elementType = type.GetElementType();
+                if (elementType == typeof(string))
+                {
+                    while (reader.Name == "string")
+                    {
+                        reader.ReadStartElement("string");
+                        var text = reader.ReadContentAsString();
+                        listofstring.Add(text);
+                        reader.ReadEndElement();
+                    }
+                }
+
+                reader.ReadEndElement();
+
+                parent.GetType().GetProperty(propertyName).SetValue(parent, listofstring.ToArray());
+
+                return null;
+            }
+
             var obj = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
 
             if (parent == null)
@@ -556,13 +604,16 @@ COMMIT TRANSACTION;";
 
             if (depth < 10)
             {
-                reader.MoveToElement();
-                reader.Read();
-
-                if (reader.Depth > depth)
+                do
                 {
-                    var childobj = ReadObject(reader, obj, depth + 1);
-                }
+                    reader.MoveToElement();
+                    reader.Read();
+
+                    if (reader.Depth > depth)
+                    {
+                        var childobj = ReadObject(reader, obj, depth + 1);
+                    }
+                } while (reader.Depth > depth);
             }
 
             return obj;
