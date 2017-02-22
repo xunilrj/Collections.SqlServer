@@ -84,5 +84,15 @@ END
         {
             return Server.DequeueGroup(QueueDestination);
         }
+
+        public void Clear()
+        {
+            Server.Execute($@"DECLARE @handle UNIQUEIDENTIFIER;
+WHILE(SELECT COUNT(*) FROM {QueueDestination}) > 0
+BEGIN
+    RECEIVE TOP(1) @handle = conversation_handle FROM {QueueDestination};
+    END CONVERSATION @handle WITH CLEANUP
+END");
+        }
     }
 }

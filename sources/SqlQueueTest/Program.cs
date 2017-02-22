@@ -30,6 +30,8 @@ namespace SqlQueueTest
             var queue = new SqlQueue(connectionString, serviceOrigin, serviceDestination, contract, messageType, queueDestination);
             queue.CreateObjects("QUEUEORIGIN");
 
+            queue.Clear();
+
             var item1 = new ItemDto(1);
             var item2 = new ItemDto(2);
             var item3 = new ItemDto(3);
