@@ -24,17 +24,17 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             onSuccess();
         }
 
-        public TItem Dequeue<TItem>(string queue)
+        public TItem Dequeue<TItem>(string queue, string baggageTable)
         {
             throw new NotImplementedException();
         }
 
-        public IEnumerable<object> DequeueGroup(string queue)
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable)
         {
             throw new NotImplementedException();
         }
 
-        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item)
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item)
         {
             throw new NotImplementedException();
         }
@@ -87,7 +87,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             throw new NotImplementedException();
         }
 
-        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item)
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item)
         {
             Queue<object> queue = null;
             if (Queues.TryGetValue(QueueDestination, out queue) == false)
@@ -119,7 +119,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             throw new NotImplementedException();
         }
 
-        public TItem Dequeue<TItem>(string queue)
+        public TItem Dequeue<TItem>(string queue, string baggageTable)
         {
             Queue<object> q = null;
             if (Queues.TryGetValue(queue, out q) == false)
@@ -131,7 +131,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             return (TItem)q.Dequeue();
         }
 
-        public IEnumerable<object> DequeueGroup(string queue)
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable)
         {
             throw new NotImplementedException();
         }

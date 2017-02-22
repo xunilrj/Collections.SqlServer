@@ -4,30 +4,22 @@ namespace MachinaAurum.Collections.SqlServer
 {
     public class SqlQueue
     {
-        string ServiceOrigin;
-        string ServiceDestination;
-        string Contract;
-        string MessageType;
-        string QueueDestination;
-
         ISQLServer Server;
+        SqlQueueParameters Parameters;
 
-        public SqlQueue(string connectionString, string serviceOrigin, string serviceDestination, string contract, string messageType, string queueDestination)
-            : this(new SQLServer(connectionString), serviceOrigin, serviceDestination, contract, messageType, queueDestination)
+        public SqlQueue(SqlQueueParameters parameters)
+            :this(new SQLServer(parameters.ConnectionString), parameters)
         {
+
         }
 
-        public SqlQueue(ISQLServer server, string serviceOrigin, string serviceDestination, string contract, string messageType, string queueDestination)
+        public SqlQueue(ISQLServer server, SqlQueueParameters parameters)
         {
             Server = server;
-            ServiceOrigin = serviceOrigin;
-            ServiceDestination = serviceDestination;
-            Contract = contract;
-            MessageType = messageType;
-            QueueDestination = queueDestination;
+            Parameters = parameters;
         }
 
-        public void CreateObjects(string queueOrigin)
+        public void CreateObjects()
         {
             Server.Execute($@"DECLARE @IsBroker int
 DECLARE @SQL nvarchar(4000)
@@ -38,59 +30,63 @@ BEGIN
 	EXEC sp_executesql @SQL
 END
 
-IF NOT EXISTS(SELECT * FROM sys.service_message_types WHERE [Name] = '{MessageType}')
+IF NOT EXISTS(SELECT * FROM sys.service_message_types WHERE [Name] = '{Parameters.MessageType}')
 BEGIN
-	CREATE MESSAGE TYPE {MessageType} VALIDATION = WELL_FORMED_XML
+	CREATE MESSAGE TYPE {Parameters.MessageType} VALIDATION = WELL_FORMED_XML
 END
 
-IF NOT EXISTS(SELECT * FROM sys.service_contracts WHERE [Name] = '{Contract}')
+IF NOT EXISTS(SELECT * FROM sys.service_contracts WHERE [Name] = '{Parameters.Contract}')
 BEGIN
-	CREATE CONTRACT {Contract}({MessageType} SENT BY ANY)
+	CREATE CONTRACT {Parameters.Contract}({Parameters.MessageType} SENT BY ANY)
 END
 
-IF NOT EXISTS(SELECT * FROM sys.service_queues WHERE [Name] = '{queueOrigin}')
+IF NOT EXISTS(SELECT * FROM sys.service_queues WHERE [Name] = '{Parameters.QueueOrigin}')
 BEGIN
-	CREATE QUEUE {queueOrigin}
+	CREATE QUEUE {Parameters.QueueOrigin}
 END
 
-IF NOT EXISTS(SELECT * FROM sys.service_queues WHERE [Name] = '{QueueDestination}')
+IF NOT EXISTS(SELECT * FROM sys.service_queues WHERE [Name] = '{Parameters.QueueDestination}')
 BEGIN
-	CREATE QUEUE {QueueDestination}
+	CREATE QUEUE {Parameters.QueueDestination}
 END
 
-IF NOT EXISTS(SELECT * FROM sys.services WHERE [Name] ='{ServiceOrigin}')
+IF NOT EXISTS(SELECT * FROM sys.services WHERE [Name] ='{Parameters.ServiceOrigin}')
 BEGIN
-	CREATE SERVICE {ServiceOrigin} ON QUEUE {queueOrigin}({Contract})
+	CREATE SERVICE {Parameters.ServiceOrigin} ON QUEUE {Parameters.QueueOrigin}({Parameters.Contract})
 END
 
-IF NOT EXISTS(SELECT * FROM sys.services WHERE [Name] ='{ServiceDestination}')
+IF NOT EXISTS(SELECT * FROM sys.services WHERE [Name] ='{Parameters.ServiceDestination}')
 BEGIN
-	CREATE SERVICE {ServiceDestination} ON QUEUE {QueueDestination}({Contract})
+	CREATE SERVICE {Parameters.ServiceDestination} ON QUEUE {Parameters.QueueDestination}({Parameters.Contract})
 END
-");
+
+IF OBJECT_ID('{Parameters.BaggageTable}') IS NULL
+BEGIN
+	CREATE TABLE [{Parameters.BaggageTable}]([Uri] varchar(50), [Data] varbinary(MAX))
+END");
         }
 
         public void Enqueue(object item)
         {
-            Server.Enqueue(ServiceOrigin, ServiceDestination, Contract, MessageType, item);
+            Server.Enqueue(Parameters.ServiceOrigin, Parameters.ServiceDestination, Parameters.Contract, Parameters.MessageType, Parameters.BaggageTable, item);
         }
 
         public T Dequeue<T>()
         {
-            return (T)Server.Dequeue<T>(QueueDestination);
+            return (T)Server.Dequeue<T>(Parameters.QueueDestination, Parameters.BaggageTable);
         }
 
         public IEnumerable<object> DequeueGroup()
         {
-            return Server.DequeueGroup(QueueDestination);
+            return Server.DequeueGroup(Parameters.QueueDestination, Parameters.BaggageTable);
         }
 
         public void Clear()
         {
             Server.Execute($@"DECLARE @handle UNIQUEIDENTIFIER;
-WHILE(SELECT COUNT(*) FROM {QueueDestination}) > 0
+WHILE(SELECT COUNT(*) FROM {Parameters.QueueDestination}) > 0
 BEGIN
-    RECEIVE TOP(1) @handle = conversation_handle FROM {QueueDestination};
+    RECEIVE TOP(1) @handle = conversation_handle FROM {Parameters.QueueDestination};
     END CONVERSATION @handle WITH CLEANUP
 END");
         }

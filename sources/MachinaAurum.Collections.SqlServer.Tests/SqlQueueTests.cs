@@ -37,7 +37,8 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             queues.Add("QUEUEDESTINATION", q);
             var fake = new FakeSqlServerBroker(queues, "QUEUEDESTINATION");
 
-            queue = new SqlQueue(fake, "SERVICEORIGIN", "SERVICEDESTINATION", "CONTRACT", "MESSAGETYPE", "QUEUEDESTINATION");
+            var parameters = new SqlQueueParameters("", "SERVICEORIGIN", "SERVICEDESTINATION", "CONTRACT", "MESSAGETYPE", "QUEUEORIGIN", "QUEUEDESTINATION", "QUEUEBAGGAGE");
+            queue = new SqlQueue(fake, parameters);
         }
     }
 }

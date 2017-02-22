@@ -246,29 +246,64 @@ WHEN NOT MATCHED THEN
             }
         }
 
-        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item)
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item)
         {
-            var sendCmd = $@"BEGIN TRANSACTION; 
+            var baggage = new Dictionary<string, byte[]>();
+            var xml = SerializeXml(item, baggage);
+
+            if (baggage.Count == 0)
+            {
+                var sendCmd = $@"BEGIN TRANSACTION; 
 DECLARE @cid UNIQUEIDENTIFIER;
 DECLARE @xml XML = @message;
 BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] TO SERVICE N'{serviceDestination}' ON CONTRACT [{contract}] WITH ENCRYPTION = OFF; 
 SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml); 
 END CONVERSATION @cid; 
 COMMIT TRANSACTION;";
-            using (var connection = GetConnection())
-            {
-                GuaranteeOpen(connection);
-                using (var command = connection.CreateCommand())
+                using (var connection = GetConnection())
                 {
-                    command.CommandText = sendCmd;
-                    var xml = SerializeXml(item);
-                    AddWithValue(command, "@message", xml);
-                    command.ExecuteNonQuery();
+                    GuaranteeOpen(connection);
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = sendCmd;
+                        AddWithValue(command, "@message", xml);
+                        command.ExecuteNonQuery();
+                    }
+                }
+            }
+            else
+            {
+                var sendCmd = $@"BEGIN TRANSACTION; 
+DECLARE @cid UNIQUEIDENTIFIER;
+DECLARE @xml XML = @message;
+BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] TO SERVICE N'{serviceDestination}' ON CONTRACT [{contract}] WITH ENCRYPTION = OFF; 
+SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml); 
+END CONVERSATION @cid;
+{string.Join("\n", baggage.Select((x, i) => $"INSERT INTO [{baggageTable}](Uri,Data) VALUES (@BaggageId{i}, @BaggageData{i})"))}
+COMMIT TRANSACTION;";
+                using (var connection = GetConnection())
+                {
+                    GuaranteeOpen(connection);
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = sendCmd;
+                        AddWithValue(command, "@message", xml);
+
+                        int i = 0;
+                        foreach (var baggageItem in baggage)
+                        {
+                            AddWithValue(command, $"BaggageId{i}", baggageItem.Key);
+                            AddWithValue(command, $"BaggageData{i}", baggageItem.Value);
+                            ++i;
+                        }
+
+                        command.ExecuteNonQuery();
+                    }
                 }
             }
         }
 
-        public TItem Dequeue<TItem>(string queue)
+        public TItem Dequeue<TItem>(string queue, string baggageTable)
         {
             using (var connection = GetConnection())
             {
@@ -285,7 +320,7 @@ COMMIT TRANSACTION;";
 
                             if (t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
                             {
-                                return Dequeue<TItem>(queue);
+                                return Dequeue<TItem>(queue, baggageTable);
                             }
 
                             var body = "";
@@ -294,7 +329,7 @@ COMMIT TRANSACTION;";
                             {
                                 var size = reader.GetBytes(13, 0, buffer, 0, 4000);
                                 body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
-                                return DeserializeXml<TItem>(body);
+                                return DeserializeXml<TItem>(body, baggageTable);
                             }
                         }
 
@@ -306,7 +341,7 @@ COMMIT TRANSACTION;";
             return default(TItem);
         }
 
-        public IEnumerable<object> DequeueGroup(string queue)
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable)
         {
             var list = new List<object>();
 
@@ -328,7 +363,7 @@ COMMIT TRANSACTION;";
                             {
                                 if (!foundMessage)
                                 {
-                                    return DequeueGroup(queue);
+                                    return DequeueGroup(queue, baggageTable);
                                 }
                                 else
                                 {
@@ -349,7 +384,7 @@ COMMIT TRANSACTION;";
                                     doc.LoadXml(body);
                                     var tagName = doc.FirstChild.Name;
                                     var type = FindType(tagName);
-                                    var item = DeserializeXml(type, body);
+                                    var item = DeserializeXml(type, body, baggageTable);
                                     list.Add(item);
                                 }
                             }
@@ -373,20 +408,20 @@ COMMIT TRANSACTION;";
               .FirstOrDefault();
         }
 
-        string SerializeXml(object item)
+        string SerializeXml(object item, IDictionary<string, byte[]> baggage)
         {
             using (var stringWriter = new StringWriter())
             {
                 var writer = new XmlTextWriter(stringWriter);
 
-                WriteObject(null, item, writer, 0);
+                WriteObject(null, item, writer, 0, baggage);
 
                 var xml = stringWriter.GetStringBuilder().ToString();
                 return xml;
             }
         }
 
-        private void WriteObject(string name, object item, XmlTextWriter writer, int depth)
+        private void WriteObject(string name, object item, XmlTextWriter writer, int depth, IDictionary<string, byte[]> baggage)
         {
             if (depth > 10)
             {
@@ -416,8 +451,20 @@ COMMIT TRANSACTION;";
                         writer.WriteCData(arrayitem);
                         writer.WriteEndElement();
                     }
+                }
+                else if (elementType == typeof(byte))
+                {
+                    var baggageid = Guid.NewGuid();
+                    var uri = $"baggage://{baggageid}";
+
+                    baggage.Add(uri, (byte[])item);
+
+                    writer.WriteStartElement("proxy");
+                    writer.WriteAttributeString("uri", uri);
                     writer.WriteEndElement();
                 }
+
+                writer.WriteEndElement();
 
                 return;
             }
@@ -440,7 +487,7 @@ COMMIT TRANSACTION;";
 
             foreach (var property in list)
             {
-                WriteObject(property.Name, property.GetValue(item), writer, depth + 1);
+                WriteObject(property.Name, property.GetValue(item), writer, depth + 1, baggage);
             }
 
             writer.WriteEndElement();
@@ -497,6 +544,10 @@ COMMIT TRANSACTION;";
                 {
                     return true;
                 }
+                else if (elementType == typeof(byte))
+                {
+                    return false;
+                }
                 else if (elementType.IsPrimitive)
                 {
                     return true;
@@ -536,17 +587,17 @@ COMMIT TRANSACTION;";
             }
         }
 
-        object DeserializeXml(Type type, string xml)
+        object DeserializeXml(Type type, string xml, string baggageTable)
         {
             using (var stringReader = new StringReader(xml))
             {
                 var reader = new XmlTextReader(stringReader);
                 reader.Read();
-                return ReadObject(reader, null, 0);
+                return ReadObject(reader, null, 0, baggageTable);
             }
         }
 
-        private object ReadObject(XmlTextReader reader, object parent, int depth)
+        private object ReadObject(XmlTextReader reader, object parent, int depth, string baggageTable)
         {
             string propertyName = reader.Name;
 
@@ -565,10 +616,12 @@ COMMIT TRANSACTION;";
             {
                 reader.ReadStartElement();
 
-                var listofstring = new List<string>();
                 var elementType = type.GetElementType();
+
                 if (elementType == typeof(string))
                 {
+                    var listofstring = new List<string>();
+
                     while (reader.Name == "string")
                     {
                         reader.ReadStartElement("string");
@@ -576,11 +629,20 @@ COMMIT TRANSACTION;";
                         listofstring.Add(text);
                         reader.ReadEndElement();
                     }
+
+                    parent.GetType().GetProperty(propertyName).SetValue(parent, listofstring.ToArray());
                 }
+                else if (elementType == typeof(byte))
+                {
+                    reader.MoveToAttribute("uri");
+                    var uri = reader.Value;
+                    var data = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
 
-                reader.ReadEndElement();
+                    reader.MoveToElement();
+                    reader.Read();
 
-                parent.GetType().GetProperty(propertyName).SetValue(parent, listofstring.ToArray());
+                    parent.GetType().GetProperty(propertyName).SetValue(parent, data);
+                }
 
                 return null;
             }
@@ -619,12 +681,27 @@ COMMIT TRANSACTION;";
 
                     if (reader.Depth > depth)
                     {
-                        var childobj = ReadObject(reader, obj, depth + 1);
+                        var childobj = ReadObject(reader, obj, depth + 1, baggageTable);
                     }
                 } while (reader.Depth > depth);
             }
 
             return obj;
+        }
+
+        private T QuerySql<T>(string sql, string uri)
+        {
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = sql;
+                    AddWithValue(command, "Param1", uri);
+
+                    return (T)command.ExecuteScalar();
+                }
+            }
         }
 
         object Convert(Type target, string value)
@@ -663,9 +740,9 @@ COMMIT TRANSACTION;";
             }
         }
 
-        T DeserializeXml<T>(string xml)
+        T DeserializeXml<T>(string xml, string baggageTable)
         {
-            return (T)DeserializeXml(typeof(T), xml);
+            return (T)DeserializeXml(typeof(T), xml, baggageTable);
         }
 
         public void Execute(string sql)

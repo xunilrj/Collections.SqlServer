@@ -55,6 +55,7 @@
     <Compile Include="SqlDictionary.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SqlQueue.cs" />
+    <Compile Include="SqlQueueParameters.cs" />
     <Compile Include="SQLServer.cs" />
   </ItemGroup>
   <ItemGroup>

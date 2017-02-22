@@ -14,21 +14,26 @@ namespace SqlQueueTest
             string serviceDestination = null;
             string contract = null;
             string messageType = null;
+            string queueOrigin = null;
             string queueDestination = null;
+            string baggageTable = null;
 
             var parser = new Fclp.FluentCommandLineParser();
-            parser.Setup<string>('c', "connectionString").Callback(x => connectionString = x);
-            parser.Setup<string>('o', "serviceOrigin").Callback(x => serviceOrigin = x);
-            parser.Setup<string>('d', "serviceDestination").Callback(x => serviceDestination = x);
-            parser.Setup<string>('n', "contract").Callback(x => contract = x);
-            parser.Setup<string>('t', "messageType").Callback(x => messageType = x);
-            parser.Setup<string>('q', "queueDestination").Callback(x => queueDestination = x);
+            parser.Setup<string>("connectionString").Callback(x => connectionString = x);
+            parser.Setup<string>("serviceOrigin").Callback(x => serviceOrigin = x);
+            parser.Setup<string>("serviceDestination").Callback(x => serviceDestination = x);
+            parser.Setup<string>("contract").Callback(x => contract = x);
+            parser.Setup<string>("messageType").Callback(x => messageType = x);
+            parser.Setup<string>("queueOrigin").Callback(x => queueOrigin = x);
+            parser.Setup<string>("queueDestination").Callback(x => queueDestination = x);
+            parser.Setup<string>("baggageTable").Callback(x => baggageTable = x);
             parser.Parse(args);
 
             Console.WriteLine("Connecting...");
 
-            var queue = new SqlQueue(connectionString, serviceOrigin, serviceDestination, contract, messageType, queueDestination);
-            queue.CreateObjects("QUEUEORIGIN");
+            var parameters = new SqlQueueParameters(connectionString, serviceOrigin, serviceDestination, contract, messageType, queueOrigin, queueDestination, baggageTable);
+            var queue = new SqlQueue(parameters);
+            queue.CreateObjects();
 
             queue.Clear();
 
@@ -54,6 +59,7 @@ namespace SqlQueueTest
             Debug.Assert(item1.Strings[0] == "abc");
             Debug.Assert(item1.Strings[1] == "def");
             Debug.Assert(item1.UniqueID == Guid.Parse("c060ee98-2527-4a47-88cb-e65263ed4277"));
+            Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.VeryBigBuffer) == "VERYBIGTEXT");
             Console.WriteLine("item1.Id == 2");
             Debug.Assert(item2.Int == 2);
             Console.WriteLine("item1.Id == 3");
@@ -87,6 +93,8 @@ namespace SqlQueueTest
         public ENUM[] Options { get; set; }
         public string[] Strings { get; set; }
 
+        public byte[] VeryBigBuffer { get; set; }
+
         public ItemDto(int id)
         {
             Int = id;
@@ -102,6 +110,8 @@ namespace SqlQueueTest
             Strings = new[] { "abc", "def" };
 
             Child = new ChildDto(99);
+
+            VeryBigBuffer = System.Text.Encoding.UTF8.GetBytes("VERYBIGTEXT");
         }
     }
 

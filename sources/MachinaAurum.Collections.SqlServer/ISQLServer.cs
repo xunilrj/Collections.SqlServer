@@ -12,8 +12,8 @@ namespace MachinaAurum.Collections.SqlServer
         bool Remove<TKey>(string table, string keyColumn, TKey key, Action onSuccess);
         void Upsert<TKey, TValue>(string table, string keyColumn, string valueColumn, TKey key, TValue value, Action onSuccess, Action onError);
 
-        void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, TItem item);
-        TItem Dequeue<TItem>(string queue);
-        IEnumerable<object> DequeueGroup(string queue);
+        void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item);
+        TItem Dequeue<TItem>(string queue, string baggageTable);
+        IEnumerable<object> DequeueGroup(string queue, string baggageTable);
     }
 }
