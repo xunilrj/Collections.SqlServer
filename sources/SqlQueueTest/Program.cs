@@ -53,6 +53,7 @@ namespace SqlQueueTest
             Debug.Assert(item1.Strings.Count() == 2);
             Debug.Assert(item1.Strings[0] == "abc");
             Debug.Assert(item1.Strings[1] == "def");
+            Debug.Assert(item1.UniqueID == Guid.Parse("c060ee98-2527-4a47-88cb-e65263ed4277"));
             Console.WriteLine("item1.Id == 2");
             Debug.Assert(item2.Int == 2);
             Console.WriteLine("item1.Id == 3");
@@ -77,6 +78,8 @@ namespace SqlQueueTest
         public float Float { get; set; }
         public string Text { get; set; }
 
+        public Guid UniqueID { get; set; }
+
         public DateTime DateTime { get; set; }
 
         public ChildDto Child { get; set; }
@@ -92,6 +95,7 @@ namespace SqlQueueTest
             Double = 4.2;
             Text = "TEXT";
 
+            UniqueID = Guid.Parse("c060ee98-2527-4a47-88cb-e65263ed4277");
             DateTime = DateTime.UtcNow;
 
             Options = new[] { ENUM.A, ENUM.B };

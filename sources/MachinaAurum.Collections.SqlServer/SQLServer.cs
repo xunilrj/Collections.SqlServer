@@ -480,6 +480,10 @@ COMMIT TRANSACTION;";
             {
                 return ((DateTime)value).ToString("o");
             }
+            else if (info.PropertyType == typeof(Guid))
+            {
+                return value.ToString();
+            }
 
             throw new InvalidProgramException();
         }
@@ -519,6 +523,10 @@ COMMIT TRANSACTION;";
                 return true;
             }
             else if (info.PropertyType == typeof(DateTimeOffset))
+            {
+                return true;
+            }
+            else if (info.PropertyType == typeof(Guid))
             {
                 return true;
             }
