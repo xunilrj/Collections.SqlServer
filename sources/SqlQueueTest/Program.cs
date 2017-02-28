@@ -38,6 +38,7 @@ namespace SqlQueueTest
 
             queue.Clear();
 
+
             var item1 = new ItemDto(1);
             var item2 = new ItemDto(2);
             var item3 = new ItemDto(3);
@@ -74,7 +75,89 @@ namespace SqlQueueTest
             Debug.Assert(items.Count() == 1);
             Debug.Assert((items.Single() as ItemDto).Int == 1);
 
+            queue.Enqueue(new NullDto());
+            var nullDto = queue.Dequeue<NullDto>();
+            Debug.Assert(nullDto.Child == null);
+            Debug.Assert(nullDto.DateTime == null);
+            Debug.Assert(nullDto.DictionaryBuffers == null);
+            Debug.Assert(nullDto.Double == null);
+            Debug.Assert(nullDto.Float == null);
+            Debug.Assert(nullDto.Int == null);
+            Debug.Assert(nullDto.Float == null);
+            Debug.Assert(nullDto.Long == null);
+            Debug.Assert(nullDto.Options == null);
+            Debug.Assert(nullDto.Strings == null);
+            Debug.Assert(nullDto.Text == null);
+            Debug.Assert(nullDto.UniqueID == null);
+            Debug.Assert(nullDto.VeryBigBuffer == null);
+
+            queue.Enqueue(new NullDto() { Int = 1 });
+            nullDto = queue.Dequeue<NullDto>();
+            Debug.Assert(nullDto.Child == null);
+            Debug.Assert(nullDto.DateTime == null);
+            Debug.Assert(nullDto.DictionaryBuffers == null);
+            Debug.Assert(nullDto.Double == null);
+            Debug.Assert(nullDto.Float == null);
+            Debug.Assert(nullDto.Int.HasValue);
+            Debug.Assert(nullDto.Int == 1);
+            Debug.Assert(nullDto.Float == null);
+            Debug.Assert(nullDto.Long == null);
+            Debug.Assert(nullDto.Options == null);
+            Debug.Assert(nullDto.Strings == null);
+            Debug.Assert(nullDto.Text == null);
+            Debug.Assert(nullDto.UniqueID == null);
+            Debug.Assert(nullDto.VeryBigBuffer == null);
+
+            queue.Enqueue(new NullDto() { Text = "SOMESTRING" });
+            nullDto = queue.Dequeue<NullDto>();
+            Debug.Assert(nullDto.Child == null);
+            Debug.Assert(nullDto.DateTime == null);
+            Debug.Assert(nullDto.DictionaryBuffers == null);
+            Debug.Assert(nullDto.Double == null);
+            Debug.Assert(nullDto.Float == null);
+            Debug.Assert(nullDto.Int == null);
+            Debug.Assert(nullDto.Float == null);
+            Debug.Assert(nullDto.Long == null);
+            Debug.Assert(nullDto.Options == null);
+            Debug.Assert(nullDto.Strings == null);
+            Debug.Assert(nullDto.Text == "SOMESTRING");
+            Debug.Assert(nullDto.UniqueID == null);
+            Debug.Assert(nullDto.VeryBigBuffer == null);
+
             Console.WriteLine("OK!");
+        }
+    }
+
+    [Serializable]
+    public class NullDto
+    {
+        public int? Int { get; set; }
+        public long? Long { get; set; }
+        public double? Double { get; set; }
+        public float? Float { get; set; }
+        public string Text { get; set; }
+        public Guid? UniqueID { get; set; }
+        public DateTime? DateTime { get; set; }
+        public ChildDto Child { get; set; }
+        public ENUM[] Options { get; set; }
+        public string[] Strings { get; set; }
+        public byte[] VeryBigBuffer { get; set; }
+        public Dictionary<string, byte[]> DictionaryBuffers { get; set; }
+
+        public NullDto()
+        {
+            Int = null;
+            Long = null;
+            Double = null;
+            Float = null;
+            Text = null;
+            UniqueID = null;
+            DateTime = null;
+            Child = null;
+            Options = null;
+            Strings = null;
+            VeryBigBuffer = null;
+            DictionaryBuffers = null;
         }
     }
 

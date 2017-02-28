@@ -421,22 +421,31 @@ COMMIT TRANSACTION;";
             }
         }
 
-        private void WriteObject(string name, object item, XmlTextWriter writer, int depth, IDictionary<string, byte[]> baggage)
+        private void WriteObject(PropertyInfo currentProperty, object item, XmlTextWriter writer, int depth, IDictionary<string, byte[]> baggage)
         {
             if (depth > 10)
             {
                 return;
             }
 
+            if (item == null)
+            {
+                writer.WriteStartElement(currentProperty.Name);
+                writer.WriteEndElement();
+                return;
+            }
+
             var type = item.GetType();
             var properties = type.GetProperties();
 
-            if (string.IsNullOrEmpty(name))
+            if (currentProperty == null)
             {
                 writer.WriteStartElement(type.Name);
             }
             else
             {
+
+                string name = currentProperty.Name;
                 writer.WriteStartElement(name);
             }
 
@@ -514,11 +523,12 @@ COMMIT TRANSACTION;";
             var list = new List<PropertyInfo>();
             foreach (var property in properties)
             {
-                if (property.CanRead)
+                var propertyValue = property.GetValue(item);
+                if (property.CanRead && propertyValue != null)
                 {
                     if (WriteAsAttribute(property))
                     {
-                        writer.WriteAttributeString(property.Name, ToString(property, property.GetValue(item)));
+                        writer.WriteAttributeString(property.Name, ToString(property, propertyValue));
                     }
                     else
                     {
@@ -529,7 +539,7 @@ COMMIT TRANSACTION;";
 
             foreach (var property in list)
             {
-                WriteObject(property.Name, property.GetValue(item), writer, depth + 1, baggage);
+                WriteObject(property, property.GetValue(item), writer, depth + 1, baggage);
             }
 
             writer.WriteEndElement();
@@ -537,6 +547,11 @@ COMMIT TRANSACTION;";
 
         string ToString(PropertyInfo info, object value)
         {
+            if (value == null)
+            {
+                return string.Empty;
+            }
+
             if (info.PropertyType.IsArray)
             {
                 var elementType = info.PropertyType.GetElementType();
@@ -552,6 +567,10 @@ COMMIT TRANSACTION;";
                 {
                     throw new InvalidProgramException();
                 }
+            }
+            else if (info.PropertyType.IsGenericType && info.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                return value.ToString();
             }
             else if (info.PropertyType.IsPrimitive)
             {
@@ -602,6 +621,10 @@ COMMIT TRANSACTION;";
                 {
                     return false;
                 }
+            }
+            else if (info.PropertyType.IsGenericType && info.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                return true;
             }
             else if (info.PropertyType.IsPrimitive)
             {
@@ -754,19 +777,20 @@ COMMIT TRANSACTION;";
                 parent.GetType().GetProperty(propertyName).SetValue(parent, obj);
             }
 
-            reader.MoveToFirstAttribute();
-
-            do
+            if (reader.MoveToFirstAttribute())
             {
-                var attributeName = reader.Name;
-                var value = reader.Value;
-
-                var property = type.GetProperty(attributeName);
-                if (property.CanWrite)
+                do
                 {
-                    property.SetValue(obj, Convert(property.PropertyType, value));
-                }
-            } while (reader.MoveToNextAttribute());
+                    var attributeName = reader.Name;
+                    var value = reader.Value;
+
+                    var property = type.GetProperty(attributeName);
+                    if (property.CanWrite)
+                    {
+                        property.SetValue(obj, Convert(property.PropertyType, value));
+                    }
+                } while (reader.MoveToNextAttribute());
+            }
 
             if (depth < 10)
             {
@@ -839,8 +863,17 @@ COMMIT TRANSACTION;";
             }
             else
             {
-                var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
-                return parse.Invoke(null, new[] { value });
+                if (target.IsGenericType && target.GetGenericTypeDefinition() == typeof(Nullable<>))
+                {
+                    var nullabletarget = target.GetGenericArguments()[0];
+                    var parse = nullabletarget.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+                    return Activator.CreateInstance(target, parse.Invoke(null, new[] { value }));
+                }
+                else
+                {
+                    var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
+                    return parse.Invoke(null, new[] { value });
+                }
             }
         }
 
