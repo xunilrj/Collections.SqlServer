@@ -456,7 +456,6 @@ COMMIT TRANSACTION;";
                 {
                     var baggageid = Guid.NewGuid();
                     var uri = $"baggage://{baggageid}";
-
                     baggage.Add(uri, (byte[])item);
 
                     writer.WriteStartElement("proxy");
@@ -493,8 +492,14 @@ COMMIT TRANSACTION;";
                     else if (genericArguments[1].IsArray && genericArguments[1].GetElementType() == typeof(byte))
                     {
                         byte[] data = (byte[])i.Value;
+
+                        var baggageid = Guid.NewGuid();
+                        var uri = $"baggage://{baggageid}";
+                        baggage.Add(uri, data);
+
                         writer.WriteStartElement("value");
-                        writer.WriteCData(System.Convert.ToBase64String(data));
+                        writer.WriteAttributeString("uri", uri);
+                        //writer.WriteCData(System.Convert.ToBase64String(data));
                         writer.WriteEndElement();
                     }
 
@@ -708,7 +713,16 @@ COMMIT TRANSACTION;";
                     {
                         reader.MoveToElement();
                         reader.Read();
-                        value = reader.ReadElementContentAsString();
+                        //value = reader.ReadElementContentAsString();
+
+                        reader.MoveToAttribute("uri");
+                        var uri = reader.Value;
+                        var buffer = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
+                        value = System.Convert.ToBase64String(buffer);
+
+                        reader.MoveToElement();
+                        reader.Read();
+
                         reader.Read();
                     }
 
@@ -716,7 +730,7 @@ COMMIT TRANSACTION;";
                     var kv = Activator.CreateInstance(kvtype, new[] { Convert(parameters[0], key), Convert(parameters[1], value) });
                     listofkv.Add(kv);
                 }
-                
+
                 var dic = (IDictionary)Activator.CreateInstance(type);
 
                 foreach (dynamic item in listofkv)
