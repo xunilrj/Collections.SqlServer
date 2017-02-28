@@ -1,5 +1,6 @@
 ﻿using MachinaAurum.Collections.SqlServer;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
@@ -60,6 +61,8 @@ namespace SqlQueueTest
             Debug.Assert(item1.Strings[1] == "def");
             Debug.Assert(item1.UniqueID == Guid.Parse("c060ee98-2527-4a47-88cb-e65263ed4277"));
             Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.VeryBigBuffer) == "VERYBIGTEXT");
+            Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.DictionaryBuffers["buffer1"]) == "BUFFER1");
+            Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.DictionaryBuffers["buffer2"]) == "BUFFER2");
             Console.WriteLine("item1.Id == 2");
             Debug.Assert(item2.Int == 2);
             Console.WriteLine("item1.Id == 3");
@@ -95,6 +98,8 @@ namespace SqlQueueTest
 
         public byte[] VeryBigBuffer { get; set; }
 
+        public Dictionary<string, byte[]> DictionaryBuffers { get; set; }
+
         public ItemDto(int id)
         {
             Int = id;
@@ -112,6 +117,10 @@ namespace SqlQueueTest
             Child = new ChildDto(99);
 
             VeryBigBuffer = System.Text.Encoding.UTF8.GetBytes("VERYBIGTEXT");
+
+            DictionaryBuffers = new Dictionary<string, byte[]>();
+            DictionaryBuffers.Add("buffer1", System.Text.Encoding.UTF8.GetBytes("BUFFER1"));
+            DictionaryBuffers.Add("buffer2", System.Text.Encoding.UTF8.GetBytes("BUFFER2"));
         }
     }
 

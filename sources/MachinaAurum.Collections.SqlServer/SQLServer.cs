@@ -468,6 +468,43 @@ COMMIT TRANSACTION;";
 
                 return;
             }
+            else if (item.GetType().IsGenericType && item.GetType().GetGenericTypeDefinition() == typeof(Dictionary<,>))
+            {
+                var genericArguments = item.GetType().GetGenericArguments();
+
+                var items = (IEnumerable)item;
+                foreach (dynamic i in items)
+                {
+                    writer.WriteStartElement("item");
+
+                    if (genericArguments[0].IsPrimitive)
+                    {
+                        writer.WriteAttributeString("key", i.Key);
+                    }
+                    else if (genericArguments[0] == typeof(string))
+                    {
+                        writer.WriteAttributeString("key", i.Key);
+                    }
+
+                    if (genericArguments[1].IsPrimitive)
+                    {
+                        writer.WriteAttributeString("value", i.Value);
+                    }
+                    else if (genericArguments[1].IsArray && genericArguments[1].GetElementType() == typeof(byte))
+                    {
+                        byte[] data = (byte[])i.Value;
+                        writer.WriteStartElement("value");
+                        writer.WriteCData(System.Convert.ToBase64String(data));
+                        writer.WriteEndElement();
+                    }
+
+                    writer.WriteEndElement();
+                }
+
+                writer.WriteEndElement();
+
+                return;
+            }
 
             var list = new List<PropertyInfo>();
             foreach (var property in properties)
@@ -646,6 +683,51 @@ COMMIT TRANSACTION;";
 
                 return null;
             }
+            else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+            {
+                var parameters = type.GetGenericArguments();
+
+                var listofkv = new System.Collections.ArrayList();
+                reader.Read();
+
+                while (reader.Name == "item")
+                {
+                    string key = null;
+                    string value = null;
+
+                    if (reader.MoveToAttribute("key"))
+                    {
+                        key = reader.Value;
+                    }
+
+                    if (reader.MoveToAttribute("value"))
+                    {
+                        value = reader.Value;
+                    }
+                    else
+                    {
+                        reader.MoveToElement();
+                        reader.Read();
+                        value = reader.ReadElementContentAsString();
+                        reader.Read();
+                    }
+
+                    var kvtype = typeof(KeyValuePair<,>).MakeGenericType(parameters);
+                    var kv = Activator.CreateInstance(kvtype, new[] { Convert(parameters[0], key), Convert(parameters[1], value) });
+                    listofkv.Add(kv);
+                }
+                
+                var dic = (IDictionary)Activator.CreateInstance(type);
+
+                foreach (dynamic item in listofkv)
+                {
+                    dic.Add(item.Key, item.Value);
+                }
+
+                parent.GetType().GetProperty(propertyName).SetValue(parent, dic);
+
+                return null;
+            }
 
             var obj = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
 
@@ -708,16 +790,24 @@ COMMIT TRANSACTION;";
         {
             if (target.IsArray)
             {
-                var values = value.Split(',');
                 var elementType = target.GetElementType();
-                if (elementType.IsEnum)
+
+                if (elementType == typeof(byte))
                 {
+                    var asbyte = System.Convert.FromBase64String(value);
+                    return asbyte;
+                }
+                else if (elementType.IsEnum)
+                {
+                    var values = value.Split(',');
                     var cast = typeof(Enumerable).GetMethod("Cast").MakeGenericMethod(elementType);
                     var toarray = typeof(Enumerable).GetMethod("ToArray").MakeGenericMethod(elementType);
                     return toarray.Invoke(null, new[] { cast.Invoke(null, new[] { values.Select(x => Enum.Parse(elementType, x)) }) });
                 }
                 else if (elementType.IsPrimitive)
                 {
+                    var values = value.Split(',');
+
                     return values.Select(x =>
                     {
                         var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
