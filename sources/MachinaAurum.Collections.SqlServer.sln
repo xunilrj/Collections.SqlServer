@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlDictionaryTest", "SqlDic
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlQueueTest", "SqlQueueTest\SqlQueueTest.csproj", "{9D5D4E41-EED6-402C-8C15-E9097106352E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlSetTest", "SqlSetTest\SqlSetTest.csproj", "{7071E968-3B20-4398-B0EE-DAB2EF79D341}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D5D4E41-EED6-402C-8C15-E9097106352E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7071E968-3B20-4398-B0EE-DAB2EF79D341}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7071E968-3B20-4398-B0EE-DAB2EF79D341}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7071E968-3B20-4398-B0EE-DAB2EF79D341}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7071E968-3B20-4398-B0EE-DAB2EF79D341}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

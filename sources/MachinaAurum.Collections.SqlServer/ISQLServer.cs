@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 
 namespace MachinaAurum.Collections.SqlServer
 {
     public interface ISQLServer
     {
         void Execute(string sql);
+
         void Start<TKey, TValue>(string table, string keyColumn, string valueColumn, Action<TKey, TValue> addKeyValue);
         void Add<TKey, TValue>(string table, string keyColumn, string valueColumn, TKey key, TValue value, Action onSuccess, Action onError);
         void Clear(string table, Action onSuccess);
@@ -14,6 +16,7 @@ namespace MachinaAurum.Collections.SqlServer
 
         void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item);
         TItem Dequeue<TItem>(string queue, string baggageTable);
+        
         IEnumerable<object> DequeueGroup(string queue, string baggageTable);
     }
 }
