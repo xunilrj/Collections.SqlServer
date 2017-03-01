@@ -38,10 +38,23 @@ namespace SqlQueueTest
 
             queue.Clear();
 
+            var item1 = new ItemDto(1)
+            {
+                InnerDto = new BaseDto.InnerBaseDto(18, "InnerDtoText")
+            };
 
-            var item1 = new ItemDto(1);
             var item2 = new ItemDto(2);
             var item3 = new ItemDto(3);
+
+
+            var ea = new SomeDomainEvent("a", "b", "c", new[] { "d" })
+            {
+                User = new DomainEventArgs.UserInfo(143,"name")
+            };
+            queue.Enqueue(ea);
+            ea = queue.Dequeue<SomeDomainEvent>();
+            Debug.Assert(ea.User.Id == 143);
+            Debug.Assert(ea.User.Name == "name");
 
             queue.Enqueue(item1);
             queue.Enqueue(item2);
@@ -64,6 +77,10 @@ namespace SqlQueueTest
             Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.VeryBigBuffer) == "VERYBIGTEXT");
             Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.DictionaryBuffers["buffer1"]) == "BUFFER1");
             Debug.Assert(System.Text.Encoding.UTF8.GetString(item1.DictionaryBuffers["buffer2"]) == "BUFFER2");
+            Debug.Assert(item1.BaseInt == 98);
+            Debug.Assert(item1.BaseChild.Int == 99);
+            Debug.Assert(item1.InnerDto.InnerDtoInt == 18);
+            Debug.Assert(item1.InnerDto.InnerDtoText == "InnerDtoText");
             Console.WriteLine("item1.Id == 2");
             Debug.Assert(item2.Int == 2);
             Console.WriteLine("item1.Id == 3");
@@ -161,8 +178,35 @@ namespace SqlQueueTest
         }
     }
 
+    public class BaseDto : EventArgs
+    {
+        public class InnerBaseDto
+        {
+            public int InnerDtoInt { get; private set; }
+            public string InnerDtoText { get; private set; }
+
+            public InnerBaseDto(int innerDtoInt, string innerDtoText)
+            {
+                InnerDtoInt = innerDtoInt;
+                InnerDtoText = innerDtoText;
+            }
+        }
+
+        public int BaseInt { get; set; }
+
+        public ChildDto BaseChild { get; set; }
+
+        public InnerBaseDto InnerDto { get; set; }
+
+        public BaseDto()
+        {
+            BaseInt = 98;
+            BaseChild = new ChildDto(99);
+        }
+    }
+
     [Serializable]
-    public class ItemDto
+    public class ItemDto : BaseDto
     {
         public int Int { get; set; }
         public long Long { get; set; }
@@ -231,6 +275,60 @@ namespace SqlQueueTest
         public Child2Dto(string text)
         {
             Text = text;
+        }
+    }
+
+
+
+    public class DomainEventArgs : EventArgs
+    {
+        public class UserInfo
+        {
+            public int Id { get; private set; }
+            public string Name { get; private set; }
+
+            public UserInfo(int id, string name)
+            {
+                Id = id;
+                Name = name;
+            }
+        }
+
+        public Guid Id { get; set; }
+        public DateTime RaisedOn { get; set; }
+        public UserInfo User { get; set; }
+
+        public DomainEventArgs()
+        {
+            Id = Guid.NewGuid();
+            RaisedOn = DateTime.UtcNow;
+        }
+    }
+
+    [Serializable]
+    public class SomeDomainEvent : DomainEventArgs
+    {
+        public string PropertyOne { get; private set; }
+        public string PropertyTwo { get; private set; }
+
+        public string[] Target1 { get; private set; }
+        public string[] Target2 { get; private set; }
+        public string[] Target3 { get; private set; }
+
+        public Dictionary<string, byte[]> SomeDic { get; private set; }
+
+        public string Data { get; private set; }
+
+        public SomeDomainEvent(string propertyOne, string propertyTwo, string propertyThree, IEnumerable<string> target)
+        {
+            PropertyOne = propertyOne;
+            PropertyTwo = propertyThree;
+            Target1 = target.ToArray();
+            Data = propertyTwo;
+
+            Target2 = Enumerable.Empty<string>().ToArray();
+            Target3 = Enumerable.Empty<string>().ToArray();
+            SomeDic = new Dictionary<string, byte[]>();
         }
     }
 }

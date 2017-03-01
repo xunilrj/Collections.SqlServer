@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -664,149 +665,190 @@ COMMIT TRANSACTION;";
 
         private object ReadObject(XmlTextReader reader, object parent, int depth, string baggageTable)
         {
-            string propertyName = reader.Name;
+            CheckIsStart(reader);
 
-            Type type = null;
-
-            if (parent == null)
+            try
             {
-                type = FindType(propertyName);
-            }
-            else
-            {
-                type = parent.GetType().GetProperty(propertyName).PropertyType;
-            }
+                string propertyName = reader.Name;
 
-            if (type.IsArray)
-            {
-                reader.ReadStartElement();
+                Type type = null;
 
-                var elementType = type.GetElementType();
-
-                if (elementType == typeof(string))
+                if (parent == null)
                 {
-                    var listofstring = new List<string>();
-
-                    while (reader.Name == "string")
-                    {
-                        reader.ReadStartElement("string");
-                        var text = reader.ReadContentAsString();
-                        listofstring.Add(text);
-                        reader.ReadEndElement();
-                    }
-
-                    parent.GetType().GetProperty(propertyName).SetValue(parent, listofstring.ToArray());
+                    type = FindType(propertyName);
                 }
-                else if (elementType == typeof(byte))
+                else
                 {
-                    reader.MoveToAttribute("uri");
-                    var uri = reader.Value;
-                    var data = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
-
-                    reader.MoveToElement();
-                    reader.Read();
-
-                    parent.GetType().GetProperty(propertyName).SetValue(parent, data);
+                    type = parent.GetType().GetProperty(propertyName).PropertyType;
                 }
 
-                return null;
-            }
-            else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-            {
-                var parameters = type.GetGenericArguments();
-
-                var listofkv = new System.Collections.ArrayList();
-                reader.Read();
-
-                while (reader.Name == "item")
+                if (type.IsArray)
                 {
-                    string key = null;
-                    string value = null;
+                    var elementType = type.GetElementType();
 
-                    if (reader.MoveToAttribute("key"))
+                    if (elementType == typeof(string))
                     {
-                        key = reader.Value;
-                    }
+                        var listofstring = new List<string>();
 
-                    if (reader.MoveToAttribute("value"))
-                    {
-                        value = reader.Value;
+                        if (reader.IsEmptyElement == false)
+                        {
+                            reader.ReadStartElement();
+                            while (reader.Name == "string")
+                            {
+                                reader.ReadStartElement("string");
+                                var text = reader.ReadContentAsString();
+                                listofstring.Add(text);
+                                reader.ReadEndElement();
+                            }
+                        }
+
+                        parent.GetType().GetProperty(propertyName).SetValue(parent, listofstring.ToArray());
                     }
-                    else
+                    else if (elementType == typeof(byte))
                     {
-                        reader.MoveToElement();
                         reader.Read();
-                        //value = reader.ReadElementContentAsString();
-
                         reader.MoveToAttribute("uri");
                         var uri = reader.Value;
-                        var buffer = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
-                        value = System.Convert.ToBase64String(buffer);
+                        var data = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
 
                         reader.MoveToElement();
                         reader.Read();
 
+                        parent.GetType().GetProperty(propertyName).SetValue(parent, data);
+                    }
+
+                    return null;
+                }
+                else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+                {
+                    var parameters = type.GetGenericArguments();
+
+                    var listofkv = new System.Collections.ArrayList();
+
+                    if (reader.IsEmptyElement == false)
+                    {
                         reader.Read();
+                        while (reader.Name == "item")
+                        {
+                            string key = null;
+                            string value = null;
+
+                            if (reader.MoveToAttribute("key"))
+                            {
+                                key = reader.Value;
+                            }
+
+                            if (reader.MoveToAttribute("value"))
+                            {
+                                value = reader.Value;
+                            }
+                            else
+                            {
+                                reader.MoveToElement();
+                                reader.Read();
+                                //value = reader.ReadElementContentAsString();
+
+                                reader.MoveToAttribute("uri");
+                                var uri = reader.Value;
+                                var buffer = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
+                                value = System.Convert.ToBase64String(buffer);
+
+                                reader.MoveToElement();
+                                reader.Read();
+
+                                reader.Read();
+                            }
+
+                            var kvtype = typeof(KeyValuePair<,>).MakeGenericType(parameters);
+                            var kv = Activator.CreateInstance(kvtype, new[] { Convert(parameters[0], key), Convert(parameters[1], value) });
+                            listofkv.Add(kv);
+                        }
                     }
 
-                    var kvtype = typeof(KeyValuePair<,>).MakeGenericType(parameters);
-                    var kv = Activator.CreateInstance(kvtype, new[] { Convert(parameters[0], key), Convert(parameters[1], value) });
-                    listofkv.Add(kv);
+                    var dic = (IDictionary)Activator.CreateInstance(type);
+
+                    foreach (dynamic item in listofkv)
+                    {
+                        dic.Add(item.Key, item.Value);
+                    }
+
+                    parent.GetType().GetProperty(propertyName).SetValue(parent, dic);
+
+                    return null;
                 }
 
-                var dic = (IDictionary)Activator.CreateInstance(type);
+                var obj = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
 
-                foreach (dynamic item in listofkv)
+                if (parent == null)
                 {
-                    dic.Add(item.Key, item.Value);
+                    parent = obj;
+                }
+                else
+                {
+                    parent.GetType().GetProperty(propertyName).SetValue(parent, obj);
                 }
 
-                parent.GetType().GetProperty(propertyName).SetValue(parent, dic);
-
-                return null;
-            }
-
-            var obj = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
-
-            if (parent == null)
-            {
-                parent = obj;
-            }
-            else
-            {
-                parent.GetType().GetProperty(propertyName).SetValue(parent, obj);
-            }
-
-            if (reader.MoveToFirstAttribute())
-            {
-                do
+                if (reader.MoveToFirstAttribute())
                 {
-                    var attributeName = reader.Name;
-                    var value = reader.Value;
-
-                    var property = type.GetProperty(attributeName);
-                    if (property.CanWrite)
+                    do
                     {
-                        property.SetValue(obj, Convert(property.PropertyType, value));
-                    }
-                } while (reader.MoveToNextAttribute());
-            }
+                        var attributeName = reader.Name;
+                        var value = reader.Value;
 
-            if (depth < 10)
-            {
-                do
+                        var property = type.GetProperty(attributeName);
+                        if (property.CanWrite)
+                        {
+                            property.SetValue(obj, Convert(property.PropertyType, value));
+                        }
+                    } while (reader.MoveToNextAttribute());
+                }
+
+                if (depth < 10)
                 {
-                    reader.MoveToElement();
-                    reader.Read();
-
-                    if (reader.Depth > depth)
+                    do
                     {
-                        var childobj = ReadObject(reader, obj, depth + 1, baggageTable);
-                    }
-                } while (reader.Depth > depth);
-            }
+                        reader.MoveToElement();
+                        reader.Read();
 
-            return obj;
+                        if (reader.Depth > depth)
+                        {
+                            var childobj = ReadObject(reader, obj, depth + 1, baggageTable);
+                        }
+                    } while (reader.Depth > depth);
+                }
+
+                return obj;
+            }
+            finally
+            {
+                CheckIsEnd(reader);
+            }
+        }
+
+        [Conditional("Debug")]
+        private static void CheckIsStart(XmlTextReader reader)
+        {
+            try
+            {
+                if (reader.NodeType != XmlNodeType.Element) throw new Exception();
+            }
+            catch
+            {
+
+            }
+        }
+
+        [Conditional("Debug")]
+        private static void CheckIsEnd(XmlTextReader reader)
+        {
+            try
+            {
+                if (!(reader.EOF || reader.IsEmptyElement || reader.NodeType == XmlNodeType.EndElement)) throw new Exception();
+            }
+            catch
+            {
+
+            }
         }
 
         private T QuerySql<T>(string sql, string uri)
