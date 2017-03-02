@@ -247,18 +247,18 @@ WHEN NOT MATCHED THEN
             }
         }
 
-        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item)
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, IEnumerable<TItem> items)
         {
             var baggage = new Dictionary<string, byte[]>();
-            var xml = SerializeXml(item, baggage);
+            var xmls = items.Select(x => SerializeXml(x, baggage)).ToArray();
 
             if (baggage.Count == 0)
             {
                 var sendCmd = $@"BEGIN TRANSACTION; 
 DECLARE @cid UNIQUEIDENTIFIER;
-DECLARE @xml XML = @message;
+{string.Join(Environment.NewLine, xmls.Select((x, i) => $"DECLARE @xml{i} XML = @message{i};"))}
 BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] TO SERVICE N'{serviceDestination}' ON CONTRACT [{contract}] WITH ENCRYPTION = OFF; 
-SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml); 
+{string.Join(Environment.NewLine, xmls.Select((x, i) => $"SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml{i});"))}
 END CONVERSATION @cid; 
 COMMIT TRANSACTION;";
                 using (var connection = GetConnection())
@@ -267,7 +267,13 @@ COMMIT TRANSACTION;";
                     using (var command = connection.CreateCommand())
                     {
                         command.CommandText = sendCmd;
-                        AddWithValue(command, "@message", xml);
+
+                        int i = 0;
+                        foreach (var xml in xmls)
+                        {
+                            AddWithValue(command, "@message" + i, xml);
+                            ++i;
+                        }
                         command.ExecuteNonQuery();
                     }
                 }
@@ -276,9 +282,9 @@ COMMIT TRANSACTION;";
             {
                 var sendCmd = $@"BEGIN TRANSACTION; 
 DECLARE @cid UNIQUEIDENTIFIER;
-DECLARE @xml XML = @message;
+{string.Join(Environment.NewLine, xmls.Select((x, i) => $"DECLARE @xml{i} XML = @message{i};"))}
 BEGIN DIALOG @cid FROM SERVICE [{serviceOrigin}] TO SERVICE N'{serviceDestination}' ON CONTRACT [{contract}] WITH ENCRYPTION = OFF; 
-SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml); 
+{string.Join(Environment.NewLine, xmls.Select((x, i) => $"SEND ON CONVERSATION @cid MESSAGE TYPE [{messageType}] (@xml{i});"))}
 END CONVERSATION @cid;
 {string.Join("\n", baggage.Select((x, i) => $"INSERT INTO [{baggageTable}](Uri,Data) VALUES (@BaggageId{i}, @BaggageData{i})"))}
 COMMIT TRANSACTION;";
@@ -288,9 +294,15 @@ COMMIT TRANSACTION;";
                     using (var command = connection.CreateCommand())
                     {
                         command.CommandText = sendCmd;
-                        AddWithValue(command, "@message", xml);
 
                         int i = 0;
+                        foreach (var xml in xmls)
+                        {
+                            AddWithValue(command, "@message" + i, xml);
+                            ++i;
+                        }
+
+                        i = 0;
                         foreach (var baggageItem in baggage)
                         {
                             AddWithValue(command, $"BaggageId{i}", baggageItem.Key);

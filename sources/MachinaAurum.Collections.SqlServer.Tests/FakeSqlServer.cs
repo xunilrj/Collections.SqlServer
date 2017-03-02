@@ -34,7 +34,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             throw new NotImplementedException();
         }
 
-        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item)
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, IEnumerable<TItem> item)
         {
             throw new NotImplementedException();
         }
@@ -87,7 +87,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             throw new NotImplementedException();
         }
 
-        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, TItem item)
+        public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, IEnumerable<TItem> item)
         {
             Queue<object> queue = null;
             if (Queues.TryGetValue(QueueDestination, out queue) == false)

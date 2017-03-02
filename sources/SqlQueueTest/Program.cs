@@ -147,6 +147,14 @@ namespace SqlQueueTest
             Debug.Assert(nullDto.UniqueID == null);
             Debug.Assert(nullDto.VeryBigBuffer == null);
 
+            var item5 = new ItemDto(5);
+            var item6 = new ItemDto(6);
+            queue.Enqueue(new[] { item5 , item6 });
+            var itemdtos = queue.DequeueGroup().Cast<ItemDto>();
+
+            Debug.Assert(itemdtos.Skip(0).First().Int == 5);
+            Debug.Assert(itemdtos.Skip(1).First().Int == 6);
+
             Console.WriteLine("OK!");
         }
     }

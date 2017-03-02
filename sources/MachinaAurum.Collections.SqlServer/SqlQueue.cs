@@ -8,7 +8,7 @@ namespace MachinaAurum.Collections.SqlServer
         SqlQueueParameters Parameters;
 
         public SqlQueue(SqlQueueParameters parameters)
-            :this(new SQLServer(parameters.ConnectionString), parameters)
+            : this(new SQLServer(parameters.ConnectionString), parameters)
         {
 
         }
@@ -68,7 +68,12 @@ END");
 
         public void Enqueue(object item)
         {
-            Server.Enqueue(Parameters.ServiceOrigin, Parameters.ServiceDestination, Parameters.Contract, Parameters.MessageType, Parameters.BaggageTable, item);
+            Server.Enqueue(Parameters.ServiceOrigin, Parameters.ServiceDestination, Parameters.Contract, Parameters.MessageType, Parameters.BaggageTable, new[] { item });
+        }
+
+        public void Enqueue(IEnumerable<object> items)
+        {
+            Server.Enqueue(Parameters.ServiceOrigin, Parameters.ServiceDestination, Parameters.Contract, Parameters.MessageType, Parameters.BaggageTable, items);
         }
 
         public T Dequeue<T>()
