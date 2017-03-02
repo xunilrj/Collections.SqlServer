@@ -49,12 +49,18 @@ namespace SqlQueueTest
 
             var ea = new SomeDomainEvent("a", "b", "c", new[] { "d" })
             {
-                User = new DomainEventArgs.UserInfo(143,"name")
+                User = new DomainEventArgs.UserInfo(143, "name")
             };
             queue.Enqueue(ea);
             ea = queue.Dequeue<SomeDomainEvent>();
             Debug.Assert(ea.User.Id == 143);
             Debug.Assert(ea.User.Name == "name");
+
+            var event2 = new SomeDomainEvent2(SomeDomainEvent2.InnerEnum1.EnumValue1, SomeDomainEvent2.InnerEnum2.Enum2Value2, 1, "message");
+            queue.Enqueue(event2);
+            event2 = queue.Dequeue<SomeDomainEvent2>();
+            Debug.Assert(event2.Inner1 == SomeDomainEvent2.InnerEnum1.EnumValue1);
+            Debug.Assert(event2.Inner2 == SomeDomainEvent2.InnerEnum2.Enum2Value2);
 
             queue.Enqueue(item1);
             queue.Enqueue(item2);
@@ -329,6 +335,35 @@ namespace SqlQueueTest
             Target2 = Enumerable.Empty<string>().ToArray();
             Target3 = Enumerable.Empty<string>().ToArray();
             SomeDic = new Dictionary<string, byte[]>();
+        }
+    }
+
+    [Serializable]
+    public class SomeDomainEvent2 : DomainEventArgs
+    {
+        public string Message { get; set; }
+        public int AnotherId { get; set; }
+        public InnerEnum1 Inner1 { get; set; }
+        public InnerEnum2 Inner2 { get; set; }
+
+        public SomeDomainEvent2(InnerEnum1 inner1, InnerEnum2 inner2, int anotherId, string message)
+        {
+            Inner1 = inner1;
+            Inner2 = inner2;
+            AnotherId = anotherId;
+            Message = message;
+        }
+
+        public enum InnerEnum1
+        {
+            EnumValue1,
+            Enumvalue2
+        }
+
+        public enum InnerEnum2
+        {
+            Enum2Value1,
+            Enum2Value2
         }
     }
 }

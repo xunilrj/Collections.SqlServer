@@ -577,6 +577,10 @@ COMMIT TRANSACTION;";
             {
                 return value.ToString();
             }
+            else if (info.PropertyType.IsEnum)
+            {
+                return value.ToString();
+            }
             else if (info.PropertyType == typeof(string))
             {
                 return value.ToString();
@@ -628,6 +632,10 @@ COMMIT TRANSACTION;";
                 return true;
             }
             else if (info.PropertyType.IsPrimitive)
+            {
+                return true;
+            }
+            else if (info.PropertyType.IsEnum)
             {
                 return true;
             }
@@ -898,6 +906,10 @@ COMMIT TRANSACTION;";
                 {
                     throw new InvalidOperationException();
                 }
+            }
+            else if (target.IsEnum)
+            {
+                return Enum.Parse(target, value);
             }
             else if (target == typeof(string))
             {
