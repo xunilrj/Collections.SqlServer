@@ -77,17 +77,23 @@ namespace MachinaAurum.Collections.SqlServer
             Server.Execute(sql);
         }
 
-        public void AddIfNotExists(IEnumerable<object> item)
+        public void AddIfNotExists(IEnumerable<object> items)
         {
-            var typeName = string.Format(Parameters.TypeFormat, Parameters.TableName);
-            var spName = string.Format(Parameters.StoredProcedureFormat, Parameters.TableName);
-            var columnsNames = string.Join(",", Parameters.ColumnsName);
-            var values = string.Join(",", item.Select(x => GetValues(Parameters.ColumnsName, x)));
+            items = items ?? Enumerable.Empty<object>();
+            var itemsArray = items.Where(x => x != null).ToArray();
 
-            Server.Execute($@"DECLARE @datasource AS {typeName}
-            INSERT @datasource ({columnsNames})
-            VALUES {values}
-            EXEC {spName} @datasource");
+            if (itemsArray.Length > 0)
+            {
+                var typeName = string.Format(Parameters.TypeFormat, Parameters.TableName);
+                var spName = string.Format(Parameters.StoredProcedureFormat, Parameters.TableName);
+                var columnsNames = string.Join(",", Parameters.ColumnsName);
+                var values = string.Join(",", items.Select(x => GetValues(Parameters.ColumnsName, x)));
+
+                Server.Execute($@"DECLARE @datasource AS {typeName}
+                    INSERT @datasource ({columnsNames})
+                    VALUES {values}
+                    EXEC {spName} @datasource");
+            }
         }
 
         private string GetValues(string[] columnsName, object item)
@@ -100,7 +106,7 @@ namespace MachinaAurum.Collections.SqlServer
         {
             foreach (var item in values)
             {
-                if(item.GetType() == typeof(string))
+                if (item.GetType() == typeof(string))
                 {
                     yield return $"'{item}'";
                 }
@@ -109,11 +115,6 @@ namespace MachinaAurum.Collections.SqlServer
                     yield return item.ToString();
                 }
             }
-        }
-
-        public void Add()
-        {
-
         }
     }
 }
