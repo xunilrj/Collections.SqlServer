@@ -17,6 +17,6 @@ namespace MachinaAurum.Collections.SqlServer
         void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, IEnumerable<TItem> item);
         TItem Dequeue<TItem>(string queue, string baggageTable);
         
-        IEnumerable<object> DequeueGroup(string queue, string baggageTable);
+        IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IEnumerable<object>> processGroup);
     }
 }

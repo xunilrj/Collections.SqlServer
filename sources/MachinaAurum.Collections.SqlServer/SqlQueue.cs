@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace MachinaAurum.Collections.SqlServer
 {
@@ -78,12 +79,26 @@ END");
 
         public T Dequeue<T>()
         {
-            return (T)Server.Dequeue<T>(Parameters.QueueDestination, Parameters.BaggageTable);
+            T item = default(T);
+
+            do
+            {
+                item = (T)Server.Dequeue<T>(Parameters.QueueDestination, Parameters.BaggageTable);
+            } while (item == null);
+
+            return item;
         }
 
         public IEnumerable<object> DequeueGroup()
         {
-            return Server.DequeueGroup(Parameters.QueueDestination, Parameters.BaggageTable);
+            var group = default(IEnumerable<object>);
+
+            do
+            {
+                group = Server.DequeueGroup(Parameters.QueueDestination, Parameters.BaggageTable, x => { });
+            } while (group == null);
+
+            return group;
         }
 
         public void Clear()
@@ -94,6 +109,16 @@ BEGIN
     RECEIVE TOP(1) @handle = conversation_handle FROM {Parameters.QueueDestination};
     END CONVERSATION @handle WITH CLEANUP
 END");
+        }
+
+        public void DequeueGroup(Action<IEnumerable<object>> process)
+        {
+            var group = default(IEnumerable<object>);
+
+            do
+            {
+                group = Server.DequeueGroup(Parameters.QueueDestination, Parameters.BaggageTable, process);
+            } while (group == null);
         }
     }
 }

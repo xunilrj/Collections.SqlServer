@@ -159,13 +159,38 @@ namespace SqlQueueTest
             {
                 queue.Enqueue(new NonSerializableDto());
                 var nonserializable = queue.Dequeue<NonSerializableDto>();
+                Debug.Assert(false);
             }
             catch
             {
 
             }
 
+            // Transactional processing must work
+            var itemT1 = new ItemDto(6);
+            queue.Enqueue(itemT1);
+            queue.DequeueGroup(messages =>
+            {
+                Debug.Assert(messages.Count() == 1);
+                Debug.Assert((messages.First() as ItemDto).Int == 6);
+            });
+
+            // Transactional retry must work
+            queue.Clear();
+            queue.Enqueue(new[] { itemT1, itemT1 });
+            queue.DequeueGroup(messages =>
+            {
+                throw new Exception();
+            });
+            queue.DequeueGroup(messages =>
+            {
+                Debug.Assert(messages.Count() == 2);
+                Debug.Assert((messages.First() as ItemDto).Int == 6);
+                Debug.Assert((messages.Skip(1).First() as ItemDto).Int == 6);
+            });
+
             Console.WriteLine("OK!");
+            //Console.ReadLine();
         }
     }
 

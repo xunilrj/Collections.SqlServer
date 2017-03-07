@@ -249,8 +249,10 @@ WHEN NOT MATCHED THEN
 
         public void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, IEnumerable<TItem> items)
         {
+            var xmlSerializer = new MachinaAurum.Collections.SqlServer.Serializers.XmlSerializer();
+
             var baggage = new Dictionary<string, byte[]>();
-            var xmls = items.Select(x => SerializeXml(x, baggage)).ToArray();
+            var xmls = items.Select(x => xmlSerializer.SerializeXml(x, baggage)).ToArray();
 
             if (baggage.Count == 0)
             {
@@ -318,6 +320,8 @@ COMMIT TRANSACTION;";
 
         public TItem Dequeue<TItem>(string queue, string baggageTable)
         {
+            string xml = string.Empty;
+
             using (var connection = GetConnection())
             {
                 GuaranteeOpen(connection);
@@ -333,82 +337,129 @@ COMMIT TRANSACTION;";
 
                             if (t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
                             {
-                                return Dequeue<TItem>(queue, baggageTable);
+                                return default(TItem);
                             }
 
-                            var body = "";
                             var buffer = new byte[4000];
                             if (reader.IsDBNull(13) == false)
                             {
                                 var size = reader.GetBytes(13, 0, buffer, 0, 4000);
-                                body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
-                                return DeserializeXml<TItem>(body, baggageTable);
+                                xml = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
                             }
                         }
 
                         reader.Close();
                     }
                 }
-            }
 
-            return default(TItem);
+                if (string.IsNullOrEmpty(xml) == false)
+                {
+                    return DeserializeXml<TItem>(xml, baggageTable, connection, null);
+                }
+                else
+                {
+                    return default(TItem);
+                }
+            }
         }
 
-        public IEnumerable<object> DequeueGroup(string queue, string baggageTable)
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IEnumerable<object>> processGroup)
         {
-            var list = new List<object>();
+            var xmls = default(IEnumerable<string>);
 
-            bool foundMessage = false;
             using (var connection = GetConnection())
             {
                 GuaranteeOpen(connection);
+
+                var transaction = connection.BeginTransaction();
+
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = $@"WAITFOR (RECEIVE Top(100) * FROM {queue})";
+                    command.Transaction = transaction;
+                    xmls = ProcessGroup(connection, transaction, command, queue, baggageTable);
+                }
 
-                    using (var reader = command.ExecuteReader())
+                if (xmls != null)
+                {
+                    var messages = ParseMessages(connection, transaction, xmls, baggageTable).ToArray();
+
+                    try
                     {
-                        while (reader.Read())
+                        if (messages != null)
                         {
-                            var t = reader.GetString(10);
-
-                            if (t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
-                            {
-                                if (!foundMessage)
-                                {
-                                    return DequeueGroup(queue, baggageTable);
-                                }
-                                else
-                                {
-                                    continue;
-                                }
-                            }
-                            else
-                            {
-                                foundMessage = true;
-                                var body = "";
-                                var buffer = new byte[4000];
-                                if (reader.IsDBNull(13) == false)
-                                {
-                                    var size = reader.GetBytes(13, 0, buffer, 0, 4000);
-                                    body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
-
-                                    var doc = new XmlDocument();
-                                    doc.LoadXml(body);
-                                    var tagName = doc.FirstChild.Name;
-                                    var type = FindType(tagName);
-                                    var item = DeserializeXml(type, body, baggageTable);
-                                    list.Add(item);
-                                }
-                            }
+                            processGroup(messages);
                         }
-
-                        reader.Close();
+                        transaction.Commit();
                     }
+                    catch
+                    {
+                        transaction.Rollback();
+                    }
+
+                    return messages;
+                }
+                else
+                {
+                    transaction.Commit();
+                    return null;
                 }
             }
+        }
 
-            return list;
+        IEnumerable<string> ProcessGroup(IDbConnection connection, IDbTransaction transaction, IDbCommand command, string queue, string baggageTable)
+        {
+            bool foundMessage = false;
+            command.CommandText = $@"WAITFOR (RECEIVE Top(100) * FROM {queue})";
+
+            var toProcess = new List<string>();
+
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var t = reader.GetString(10);
+
+                    if (t == "http://schemas.microsoft.com/SQL/ServiceBroker/EndDialog")
+                    {
+                        if (!foundMessage)
+                        {
+                            return null;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        foundMessage = true;
+                        var body = "";
+                        var buffer = new byte[4000];
+                        if (reader.IsDBNull(13) == false)
+                        {
+                            var size = reader.GetBytes(13, 0, buffer, 0, 4000);
+                            body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
+                            toProcess.Add(body);
+                        }
+                    }
+                }
+
+                reader.Close();
+            }
+
+            return toProcess;
+        }
+
+        public IEnumerable<object> ParseMessages(IDbConnection connection, IDbTransaction transaction, IEnumerable<string> messages, string baggageTable)
+        {
+            foreach (var message in messages)
+            {
+                var doc = new XmlDocument();
+                doc.LoadXml(message);
+                var tagName = doc.FirstChild.Name;
+                var type = FindType(tagName);
+                yield return DeserializeXml(type, message, baggageTable, connection, transaction);
+            }
         }
 
         private static Type FindType(string typeName)
@@ -421,269 +472,19 @@ COMMIT TRANSACTION;";
               .FirstOrDefault();
         }
 
-        string SerializeXml(object item, IDictionary<string, byte[]> baggage)
-        {
-            using (var stringWriter = new StringWriter())
-            {
-                var writer = new XmlTextWriter(stringWriter);
 
-                WriteObject(null, item, writer, 0, baggage);
 
-                var xml = stringWriter.GetStringBuilder().ToString();
-                return xml;
-            }
-        }
-
-        private void WriteObject(PropertyInfo currentProperty, object item, XmlTextWriter writer, int depth, IDictionary<string, byte[]> baggage)
-        {
-            if (depth > 10)
-            {
-                return;
-            }
-
-            if (item == null)
-            {
-                writer.WriteStartElement(currentProperty.Name);
-                writer.WriteEndElement();
-                return;
-            }
-
-            var type = item.GetType();
-            var properties = type.GetProperties();
-
-            if (currentProperty == null)
-            {
-                writer.WriteStartElement(type.Name);
-            }
-            else
-            {
-
-                string name = currentProperty.Name;
-                writer.WriteStartElement(name);
-            }
-
-            if (item.GetType().IsArray)
-            {
-                var elementType = item.GetType().GetElementType();
-                if (elementType == typeof(string))
-                {
-                    foreach (var arrayitem in (string[])item)
-                    {
-                        writer.WriteStartElement("string");
-                        writer.WriteCData(arrayitem);
-                        writer.WriteEndElement();
-                    }
-                }
-                else if (elementType == typeof(byte))
-                {
-                    var baggageid = Guid.NewGuid();
-                    var uri = $"baggage://{baggageid}";
-                    baggage.Add(uri, (byte[])item);
-
-                    writer.WriteStartElement("proxy");
-                    writer.WriteAttributeString("uri", uri);
-                    writer.WriteEndElement();
-                }
-
-                writer.WriteEndElement();
-
-                return;
-            }
-            else if (item.GetType().IsGenericType && item.GetType().GetGenericTypeDefinition() == typeof(Dictionary<,>))
-            {
-                var genericArguments = item.GetType().GetGenericArguments();
-
-                var items = (IEnumerable)item;
-                foreach (dynamic i in items)
-                {
-                    writer.WriteStartElement("item");
-
-                    if (genericArguments[0].IsPrimitive)
-                    {
-                        writer.WriteAttributeString("key", i.Key);
-                    }
-                    else if (genericArguments[0] == typeof(string))
-                    {
-                        writer.WriteAttributeString("key", i.Key);
-                    }
-
-                    if (genericArguments[1].IsPrimitive)
-                    {
-                        writer.WriteAttributeString("value", i.Value);
-                    }
-                    else if (genericArguments[1].IsArray && genericArguments[1].GetElementType() == typeof(byte))
-                    {
-                        byte[] data = (byte[])i.Value;
-
-                        var baggageid = Guid.NewGuid();
-                        var uri = $"baggage://{baggageid}";
-                        baggage.Add(uri, data);
-
-                        writer.WriteStartElement("value");
-                        writer.WriteAttributeString("uri", uri);
-                        //writer.WriteCData(System.Convert.ToBase64String(data));
-                        writer.WriteEndElement();
-                    }
-
-                    writer.WriteEndElement();
-                }
-
-                writer.WriteEndElement();
-
-                return;
-            }
-
-            var list = new List<PropertyInfo>();
-            foreach (var property in properties)
-            {
-                var propertyValue = property.GetValue(item);
-                if (property.CanRead && propertyValue != null)
-                {
-                    if (WriteAsAttribute(property))
-                    {
-                        writer.WriteAttributeString(property.Name, ToString(property, propertyValue));
-                    }
-                    else
-                    {
-                        list.Add(property);
-                    }
-                }
-            }
-
-            foreach (var property in list)
-            {
-                WriteObject(property, property.GetValue(item), writer, depth + 1, baggage);
-            }
-
-            writer.WriteEndElement();
-        }
-
-        string ToString(PropertyInfo info, object value)
-        {
-            if (value == null)
-            {
-                return string.Empty;
-            }
-
-            if (info.PropertyType.IsArray)
-            {
-                var elementType = info.PropertyType.GetElementType();
-                if (elementType.IsEnum)
-                {
-                    return string.Join(",", ((IEnumerable)value).OfType<object>().Select(x => x.ToString()).ToArray());
-                }
-                else if (elementType.IsPrimitive)
-                {
-                    return string.Join(",", ((IEnumerable)value).OfType<object>().Select(x => x.ToString()).ToArray());
-                }
-                else
-                {
-                    throw new InvalidProgramException();
-                }
-            }
-            else if (info.PropertyType.IsGenericType && info.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-            {
-                return value.ToString();
-            }
-            else if (info.PropertyType.IsPrimitive)
-            {
-                return value.ToString();
-            }
-            else if (info.PropertyType.IsEnum)
-            {
-                return value.ToString();
-            }
-            else if (info.PropertyType == typeof(string))
-            {
-                return value.ToString();
-            }
-            else if (info.PropertyType == typeof(DateTime))
-            {
-                return ((DateTime)value).ToString("o");
-            }
-            else if (info.PropertyType == typeof(DateTimeOffset))
-            {
-                return ((DateTime)value).ToString("o");
-            }
-            else if (info.PropertyType == typeof(Guid))
-            {
-                return value.ToString();
-            }
-
-            throw new InvalidProgramException();
-        }
-
-        bool WriteAsAttribute(PropertyInfo info)
-        {
-            if (info.PropertyType.IsArray)
-            {
-                var elementType = info.PropertyType.GetElementType();
-                if (elementType.IsEnum)
-                {
-                    return true;
-                }
-                else if (elementType == typeof(byte))
-                {
-                    return false;
-                }
-                else if (elementType.IsPrimitive)
-                {
-                    return true;
-                }
-                else if (elementType == typeof(string))
-                {
-                    return false;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            else if (info.PropertyType.IsGenericType && info.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
-            {
-                return true;
-            }
-            else if (info.PropertyType.IsPrimitive)
-            {
-                return true;
-            }
-            else if (info.PropertyType.IsEnum)
-            {
-                return true;
-            }
-            else if (info.PropertyType == typeof(string))
-            {
-                return true;
-            }
-            else if (info.PropertyType == typeof(DateTime))
-            {
-                return true;
-            }
-            else if (info.PropertyType == typeof(DateTimeOffset))
-            {
-                return true;
-            }
-            else if (info.PropertyType == typeof(Guid))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        object DeserializeXml(Type type, string xml, string baggageTable)
+        object DeserializeXml(Type type, string xml, string baggageTable, IDbConnection connection, IDbTransaction transaction)
         {
             using (var stringReader = new StringReader(xml))
             {
                 var reader = new XmlTextReader(stringReader);
                 reader.Read();
-                return ReadObject(reader, null, 0, baggageTable);
+                return ReadObject(reader, null, 0, baggageTable, connection, transaction);
             }
         }
 
-        private object ReadObject(XmlTextReader reader, object parent, int depth, string baggageTable)
+        private object ReadObject(XmlTextReader reader, object parent, int depth, string baggageTable, IDbConnection connection, IDbTransaction transaction)
         {
             CheckIsStart(reader);
 
@@ -734,7 +535,7 @@ COMMIT TRANSACTION;";
                         reader.Read();
                         reader.MoveToAttribute("uri");
                         var uri = reader.Value;
-                        var data = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
+                        var data = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri, connection, transaction);
 
                         reader.MoveToElement();
                         reader.Read();
@@ -775,7 +576,7 @@ COMMIT TRANSACTION;";
 
                                 reader.MoveToAttribute("uri");
                                 var uri = reader.Value;
-                                var buffer = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri);
+                                var buffer = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri, connection, transaction);
                                 value = System.Convert.ToBase64String(buffer);
 
                                 reader.MoveToElement();
@@ -837,7 +638,7 @@ COMMIT TRANSACTION;";
 
                         if (reader.Depth > depth)
                         {
-                            var childobj = ReadObject(reader, obj, depth + 1, baggageTable);
+                            var childobj = ReadObject(reader, obj, depth + 1, baggageTable, connection, transaction);
                         }
                     } while (reader.Depth > depth);
                 }
@@ -876,18 +677,31 @@ COMMIT TRANSACTION;";
             }
         }
 
-        private T QuerySql<T>(string sql, string uri)
+        private T QuerySql<T>(string sql, string uri, IDbConnection connection, IDbTransaction transaction)
         {
-            using (var connection = GetConnection())
+            if (connection == null)
             {
-                GuaranteeOpen(connection);
-                using (var command = connection.CreateCommand())
+                using (connection = GetConnection())
                 {
-                    command.CommandText = sql;
-                    AddWithValue(command, "Param1", uri);
-
-                    return (T)command.ExecuteScalar();
+                    return InnerQuerySql<T>(sql, uri, connection, transaction);
                 }
+            }
+            else
+            {
+                return InnerQuerySql<T>(sql, uri, connection, transaction);
+            }
+        }
+
+        private T InnerQuerySql<T>(string sql, string uri, IDbConnection connection, IDbTransaction transaction)
+        {
+            GuaranteeOpen(connection);
+            using (var command = connection.CreateCommand())
+            {
+                command.Transaction = transaction;
+                command.CommandText = sql;
+                AddWithValue(command, "Param1", uri);
+
+                return (T)command.ExecuteScalar();
             }
         }
 
@@ -948,9 +762,9 @@ COMMIT TRANSACTION;";
             }
         }
 
-        T DeserializeXml<T>(string xml, string baggageTable)
+        T DeserializeXml<T>(string xml, string baggageTable, IDbConnection connection, IDbTransaction transaction)
         {
-            return (T)DeserializeXml(typeof(T), xml, baggageTable);
+            return (T)DeserializeXml(typeof(T), xml, baggageTable, connection, transaction);
         }
 
         public void Execute(string sql)
@@ -966,6 +780,8 @@ COMMIT TRANSACTION;";
             }
         }
     }
+
+    
 
     public static class JsonConvert
     {

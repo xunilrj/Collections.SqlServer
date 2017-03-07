@@ -29,7 +29,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             throw new NotImplementedException();
         }
 
-        public IEnumerable<object> DequeueGroup(string queue, string baggageTable)
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IEnumerable<object>> process)
         {
             throw new NotImplementedException();
         }
@@ -131,7 +131,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             return (TItem)q.Dequeue();
         }
 
-        public IEnumerable<object> DequeueGroup(string queue, string baggageTable)
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IEnumerable<object>> process)
         {
             throw new NotImplementedException();
         }
