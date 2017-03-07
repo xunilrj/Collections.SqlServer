@@ -149,11 +149,21 @@ namespace SqlQueueTest
 
             var item5 = new ItemDto(5);
             var item6 = new ItemDto(6);
-            queue.Enqueue(new[] { item5 , item6 });
+            queue.Enqueue(new[] { item5, item6 });
             var itemdtos = queue.DequeueGroup().Cast<ItemDto>();
 
             Debug.Assert(itemdtos.Skip(0).First().Int == 5);
             Debug.Assert(itemdtos.Skip(1).First().Int == 6);
+
+            try
+            {
+                queue.Enqueue(new NonSerializableDto());
+                var nonserializable = queue.Dequeue<NonSerializableDto>();
+            }
+            catch
+            {
+
+            }
 
             Console.WriteLine("OK!");
         }
@@ -373,5 +383,11 @@ namespace SqlQueueTest
             Enum2Value1,
             Enum2Value2
         }
+    }
+
+
+    public class NonSerializableDto
+    {
+
     }
 }

@@ -696,6 +696,11 @@ COMMIT TRANSACTION;";
                 if (parent == null)
                 {
                     type = FindType(propertyName);
+
+                    if (type == null)
+                    {
+                        throw new Exception($"Type {propertyName} not found. Check it has [Serializable] attribute.");
+                    }
                 }
                 else
                 {
