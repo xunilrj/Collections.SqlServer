@@ -176,22 +176,45 @@ namespace SqlQueueTest
             });
 
             // Transactional retry must work
+
+            var dic = new SqlDictionary<Guid, object>();
+            dic.Load(connectionString, "QUEUESTATUS", "Oid", "Status");
+
             queue.Clear();
-            queue.Enqueue(new[] { itemT1, itemT1 });
+            queue.Enqueue(new[] { new ItemDto(5, Guid.NewGuid()), new ItemDto(6, Guid.NewGuid()) });
             queue.DequeueGroup(messages =>
             {
-                throw new Exception();
+                foreach (ItemDto item in messages)
+                {
+                    dic.Add(item.UniqueID, new QueueProcessing() { Message = item, Status = "Processing" });
+                    throw new Exception();
+                }
             });
             queue.DequeueGroup(messages =>
             {
+                foreach (ItemDto item in messages)
+                {
+                    var processing = new QueueProcessing() { Message = item, Status = "Processing" };
+                    dic[item.UniqueID] = processing;
+
+                    processing.Status = "Finished";
+                    dic[item.UniqueID] = processing;
+                }
+
                 Debug.Assert(messages.Count() == 2);
-                Debug.Assert((messages.First() as ItemDto).Int == 6);
+                Debug.Assert((messages.First() as ItemDto).Int == 5);
                 Debug.Assert((messages.Skip(1).First() as ItemDto).Int == 6);
             });
 
             Console.WriteLine("OK!");
             //Console.ReadLine();
         }
+    }
+
+    public class QueueProcessing
+    {
+        public string Status { get; set; }
+        public object Message { get; set; }
     }
 
     [Serializable]
@@ -297,6 +320,12 @@ namespace SqlQueueTest
             DictionaryBuffers = new Dictionary<string, byte[]>();
             DictionaryBuffers.Add("buffer1", System.Text.Encoding.UTF8.GetBytes("BUFFER1"));
             DictionaryBuffers.Add("buffer2", System.Text.Encoding.UTF8.GetBytes("BUFFER2"));
+        }
+
+        public ItemDto(int a, Guid g)
+        {
+            Int = a;
+            UniqueID = g;
         }
     }
 

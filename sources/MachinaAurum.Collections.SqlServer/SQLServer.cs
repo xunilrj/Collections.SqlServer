@@ -112,6 +112,10 @@ ELSE
             {
                 return "int";
             }
+            else if (typeof(T) == typeof(Guid))
+            {
+                return "uniqueidentifier";
+            }
             else
             {
                 return "nvarchar(50)";
@@ -541,11 +545,13 @@ COMMIT TRANSACTION;";
 
         public static string Serialize<T>(T obj)
         {
+            if (SerializeFunc == null) throw new Exception("Install NewtonsoftJson.");
             return SerializeFunc(obj);
         }
 
         public static T Deserialize<T>(string json)
         {
+            if (DeserializeFunc == null) throw new Exception("Install NewtonsoftJson.");
             return (T)DeserializeFunc(json, typeof(T));
         }
     }
