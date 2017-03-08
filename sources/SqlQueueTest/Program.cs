@@ -177,33 +177,41 @@ namespace SqlQueueTest
 
             // Transactional retry must work
 
-            var dic = new SqlDictionary<Guid, object>();
-            dic.Load(connectionString, "QUEUESTATUS", "Oid", "Status");
+            var dic = new SqlNoMemoryDictionary<Guid, QueuItemEnvelope>();
+            dic.Prepare(connectionString, "QUEUESTATUS", "Oid", "Status");
+            dic.Clear();
 
             queue.Clear();
             queue.Enqueue(new[] { new ItemDto(5, Guid.NewGuid()), new ItemDto(6, Guid.NewGuid()) });
             queue.DequeueGroup(messages =>
             {
-                foreach (ItemDto item in messages)
+                foreach (ItemDto mesage in messages)
                 {
-                    dic.Add(item.UniqueID, new QueueProcessing() { Message = item, Status = "Processing" });
+                    dic.Add(mesage.UniqueID, new QueuItemEnvelope(mesage));
                     throw new Exception();
                 }
             });
-            queue.DequeueGroup(messages =>
+            queue.DequeueGroup<Guid>(dic, x => (x as ItemDto).UniqueID, message =>
             {
-                foreach (ItemDto item in messages)
-                {
-                    var processing = new QueueProcessing() { Message = item, Status = "Processing" };
-                    dic[item.UniqueID] = processing;
+                Console.Write(message);
+            });
 
-                    processing.Status = "Finished";
-                    dic[item.UniqueID] = processing;
-                }
+            Guid g1 = Guid.Parse("855a88f3-e2f8-4cbb-8ef5-130d86f27913");
+            Guid g2 = Guid.Parse("6abaeacc-f47b-4c77-b0fc-ecd873dea12a");
+            queue.Enqueue(new[] { new ItemDto(5, g1), new ItemDto(6, g2) });
+            queue.DequeueGroup(dic, x => (x as ItemDto).UniqueID, message =>
+            {
+                throw new Exception();
+            });
+            queue.DequeueGroup(dic, x => (x as ItemDto).UniqueID, message =>
+            {
+                Console.Write(message);
+            });
 
-                Debug.Assert(messages.Count() == 2);
-                Debug.Assert((messages.First() as ItemDto).Int == 5);
-                Debug.Assert((messages.Skip(1).First() as ItemDto).Int == 6);
+            queue.Enqueue(new[] { new ItemDto(5, g1), new ItemDto(6, g2) });
+            queue.DequeueGroup(dic, x => (x as ItemDto).UniqueID, message =>
+            {
+                Debug.Assert(false);
             });
 
             Console.WriteLine("OK!");

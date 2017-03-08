@@ -120,5 +120,33 @@ END");
                 group = Server.DequeueGroup(Parameters.QueueDestination, Parameters.BaggageTable, process);
             } while (group == null);
         }
+
+        public void DequeueGroup<TKey>(IDictionary<TKey, QueuItemEnvelope> envelopeDictionary, Func<object, TKey> getKey, Action<object> process)
+        {
+            DequeueGroup(messages =>
+            {
+                foreach (var message in messages)
+                {
+                    var key = getKey(message);
+
+                    QueuItemEnvelope envelope = null;
+                    if (envelopeDictionary.TryGetValue(key, out envelope) == false)
+                    {
+                        envelope = new QueuItemEnvelope(message);
+                    }
+
+                    if (envelope.Status == QueuItemStatus.Enqueued || envelope.Status == QueuItemStatus.Processing)
+                    {
+                        envelope.StartProcessing();
+                        envelopeDictionary[key] = envelope;
+
+                        process(message);
+
+                        envelope.FinishProcessing();
+                        envelopeDictionary[key] = envelope;
+                    }
+                }
+            });
+        }
     }
 }

@@ -54,6 +54,7 @@
     <Compile Include="Generic\IQueue.cs" />
     <Compile Include="Generic\ISet.cs" />
     <Compile Include="ISQLServer.cs" />
+    <Compile Include="QueuItemEnvelope.cs" />
     <Compile Include="Serializers\XmlDeserializer.cs" />
     <Compile Include="Serializers\XmlSerializer.cs" />
     <Compile Include="SqlDictionary.cs" />

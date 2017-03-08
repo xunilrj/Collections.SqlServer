@@ -118,7 +118,10 @@ ELSE
 
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = $"CREATE TABLE {table}([{columnKey}] {keycolumnType} not null, [{columnValue}] {valueColumnType}, CONSTRAINT PK_{pktablename}_{pkcolumnKey} PRIMARY KEY CLUSTERED ([{columnKey}]))";
+                    command.CommandText = $@"IF OBJECT_ID('{table}') IS NULL
+BEGIN
+CREATE TABLE {table}([{columnKey}] {keycolumnType} not null, [{columnValue}] {valueColumnType}, CONSTRAINT PK_{pktablename}_{pkcolumnKey} PRIMARY KEY CLUSTERED ([{columnKey}]))
+END";
                     command.ExecuteNonQuery();
                 }
             }
