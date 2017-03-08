@@ -1,4 +1,5 @@
 ﻿using MachinaAurum.Collections.SqlServer.Serializers;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
@@ -15,13 +16,14 @@ namespace MachinaAurum.Collections.SqlServer.Tests
                 Int = 1,
                 Float = 2.0f,
                 Double = 3.0,
-                String = "SOMESTRING"
+                String = "SOMESTRING",
+                Guid = Guid.Parse("6f501719-4312-45dd-9f94-2fd5574537fa")
             };
 
             var xmlSerializer = new XmlSerializer();
             var xml = xmlSerializer.SerializeXml(dto);
 
-            Assert.Equal("<PrimitivesDto Int=\"1\" Float=\"2\" Double=\"3\" String=\"SOMESTRING\" />", xml);
+            Assert.Equal("<PrimitivesDto Int=\"1\" Float=\"2\" Double=\"3\" String=\"SOMESTRING\" Guid=\"6f501719-4312-45dd-9f94-2fd5574537fa\" />", xml);
         }
 
         [Fact]
@@ -247,12 +249,14 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         }
     }
 
+    [Serializable]
     public class PrimitivesDto
     {
         public int Int { get; set; }
         public float Float { get; set; }
         public double Double { get; set; }
         public string String { get; set; }
+        public Guid Guid { get; set; }
     }
 
     public enum SomeEnum
@@ -261,11 +265,13 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         EnumValue2
     }
 
+    [Serializable]
     public class EnumDto
     {
         public SomeEnum Enum { get; set; }
     }
 
+    [Serializable]
     public class PrimitivesArrayDto
     {
         public int[] Int { get; set; }
@@ -274,16 +280,19 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         public string[] String { get; set; }
     }
 
+    [Serializable]
     public class EnumArrayDto
     {
         public SomeEnum[] Enums { get; set; }
     }
 
+    [Serializable]
     public class ByteBufferDto
     {
         public byte[] Buffer { get; set; }
     }
 
+    [Serializable]
     public class DictionariesDto
     {
         public Dictionary<string, string> StringString { get; set; }
@@ -292,6 +301,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         public Dictionary<int, int> IntInt { get; set; }
     }
 
+    [Serializable]
     public class DictionariesEnumDto
     {
         public Dictionary<SomeEnum, string> SomeEnumString { get; set; }
@@ -299,31 +309,37 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         public Dictionary<SomeEnum, SomeEnum> SomeEnumSomeEnum { get; set; }
     }
 
+    [Serializable]
     public class DictionaryStringByteDto
     {
         public Dictionary<string, byte[]> StringByteBuffer { get; set; }
     }
 
+    [Serializable]
     public class RootDto
     {
         public LeafDto Leaf { get; set; }
     }
 
+    [Serializable]
     public class LeafDto
     {
         public int Id { get; set; }
     }
 
+    [Serializable]
     public class ClassWithBaseDto : RootDto
     {
 
     }
 
+    [Serializable]
     public class ClassWithArrayOfClass
     {
         public LeafDto[] Leafs { get; set; }
     }
 
+    [Serializable]
     public class DictionaryWithClass
     {
         public Dictionary<string, LeafDto> StringLeafDto { get; set; }

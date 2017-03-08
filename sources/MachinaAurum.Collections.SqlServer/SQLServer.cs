@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MachinaAurum.Collections.SqlServer.Serializers;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
@@ -318,6 +319,11 @@ COMMIT TRANSACTION;";
             }
         }
 
+        XmlDeserializer CreateDeserializer(string baggageTable, IDbConnection connection, IDbTransaction transaction)
+        {
+            return new XmlDeserializer(uri => QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri, connection, transaction));
+        }
+
         public TItem Dequeue<TItem>(string queue, string baggageTable)
         {
             string xml = string.Empty;
@@ -354,7 +360,8 @@ COMMIT TRANSACTION;";
 
                 if (string.IsNullOrEmpty(xml) == false)
                 {
-                    return DeserializeXml<TItem>(xml, baggageTable, connection, null);
+                    var xmlDeserializer = CreateDeserializer(baggageTable, connection, null);
+                    return xmlDeserializer.Deserialize<TItem>(xml);
                 }
                 else
                 {
@@ -454,225 +461,8 @@ COMMIT TRANSACTION;";
         {
             foreach (var message in messages)
             {
-                var doc = new XmlDocument();
-                doc.LoadXml(message);
-                var tagName = doc.FirstChild.Name;
-                var type = FindType(tagName);
-                yield return DeserializeXml(type, message, baggageTable, connection, transaction);
-            }
-        }
-
-        private static Type FindType(string typeName)
-        {
-            return AppDomain.CurrentDomain.GetAssemblies().SelectMany(x =>
-            {
-                try { return x.GetTypes(); }
-                catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null).ToArray(); }
-            }).Where(x => x.Name == typeName && x.GetCustomAttribute<SerializableAttribute>() != null)
-              .FirstOrDefault();
-        }
-
-
-
-        object DeserializeXml(Type type, string xml, string baggageTable, IDbConnection connection, IDbTransaction transaction)
-        {
-            using (var stringReader = new StringReader(xml))
-            {
-                var reader = new XmlTextReader(stringReader);
-                reader.Read();
-                return ReadObject(reader, null, 0, baggageTable, connection, transaction);
-            }
-        }
-
-        private object ReadObject(XmlTextReader reader, object parent, int depth, string baggageTable, IDbConnection connection, IDbTransaction transaction)
-        {
-            CheckIsStart(reader);
-
-            try
-            {
-                string propertyName = reader.Name;
-
-                Type type = null;
-
-                if (parent == null)
-                {
-                    type = FindType(propertyName);
-
-                    if (type == null)
-                    {
-                        throw new Exception($"Type {propertyName} not found. Check it has [Serializable] attribute.");
-                    }
-                }
-                else
-                {
-                    type = parent.GetType().GetProperty(propertyName).PropertyType;
-                }
-
-                if (type.IsArray)
-                {
-                    var elementType = type.GetElementType();
-
-                    if (elementType == typeof(string))
-                    {
-                        var listofstring = new List<string>();
-
-                        if (reader.IsEmptyElement == false)
-                        {
-                            reader.ReadStartElement();
-                            while (reader.Name == "string")
-                            {
-                                reader.ReadStartElement("string");
-                                var text = reader.ReadContentAsString();
-                                listofstring.Add(text);
-                                reader.ReadEndElement();
-                            }
-                        }
-
-                        parent.GetType().GetProperty(propertyName).SetValue(parent, listofstring.ToArray());
-                    }
-                    else if (elementType == typeof(byte))
-                    {
-                        reader.Read();
-                        reader.MoveToAttribute("uri");
-                        var uri = reader.Value;
-                        var data = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri, connection, transaction);
-
-                        reader.MoveToElement();
-                        reader.Read();
-
-                        parent.GetType().GetProperty(propertyName).SetValue(parent, data);
-                    }
-
-                    return null;
-                }
-                else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-                {
-                    var parameters = type.GetGenericArguments();
-
-                    var listofkv = new System.Collections.ArrayList();
-
-                    if (reader.IsEmptyElement == false)
-                    {
-                        reader.Read();
-                        while (reader.Name == "item")
-                        {
-                            string key = null;
-                            string value = null;
-
-                            if (reader.MoveToAttribute("key"))
-                            {
-                                key = reader.Value;
-                            }
-
-                            if (reader.MoveToAttribute("value"))
-                            {
-                                value = reader.Value;
-                            }
-                            else
-                            {
-                                reader.MoveToElement();
-                                reader.Read();
-                                //value = reader.ReadElementContentAsString();
-
-                                reader.MoveToAttribute("uri");
-                                var uri = reader.Value;
-                                var buffer = QuerySql<byte[]>($"DELETE FROM [{baggageTable}] OUTPUT deleted.[Data] WHERE Uri = @Param1", uri, connection, transaction);
-                                value = System.Convert.ToBase64String(buffer);
-
-                                reader.MoveToElement();
-                                reader.Read();
-
-                                reader.Read();
-                            }
-
-                            var kvtype = typeof(KeyValuePair<,>).MakeGenericType(parameters);
-                            var kv = Activator.CreateInstance(kvtype, new[] { Convert(parameters[0], key), Convert(parameters[1], value) });
-                            listofkv.Add(kv);
-                        }
-                    }
-
-                    var dic = (IDictionary)Activator.CreateInstance(type);
-
-                    foreach (dynamic item in listofkv)
-                    {
-                        dic.Add(item.Key, item.Value);
-                    }
-
-                    parent.GetType().GetProperty(propertyName).SetValue(parent, dic);
-
-                    return null;
-                }
-
-                var obj = System.Runtime.Serialization.FormatterServices.GetUninitializedObject(type);
-
-                if (parent == null)
-                {
-                    parent = obj;
-                }
-                else
-                {
-                    parent.GetType().GetProperty(propertyName).SetValue(parent, obj);
-                }
-
-                if (reader.MoveToFirstAttribute())
-                {
-                    do
-                    {
-                        var attributeName = reader.Name;
-                        var value = reader.Value;
-
-                        var property = type.GetProperty(attributeName);
-                        if (property.CanWrite)
-                        {
-                            property.SetValue(obj, Convert(property.PropertyType, value));
-                        }
-                    } while (reader.MoveToNextAttribute());
-                }
-
-                if (depth < 10)
-                {
-                    do
-                    {
-                        reader.MoveToElement();
-                        reader.Read();
-
-                        if (reader.Depth > depth)
-                        {
-                            var childobj = ReadObject(reader, obj, depth + 1, baggageTable, connection, transaction);
-                        }
-                    } while (reader.Depth > depth);
-                }
-
-                return obj;
-            }
-            finally
-            {
-                CheckIsEnd(reader);
-            }
-        }
-
-        [Conditional("Debug")]
-        private static void CheckIsStart(XmlTextReader reader)
-        {
-            try
-            {
-                if (reader.NodeType != XmlNodeType.Element) throw new Exception();
-            }
-            catch
-            {
-
-            }
-        }
-
-        [Conditional("Debug")]
-        private static void CheckIsEnd(XmlTextReader reader)
-        {
-            try
-            {
-                if (!(reader.EOF || reader.IsEmptyElement || reader.NodeType == XmlNodeType.EndElement)) throw new Exception();
-            }
-            catch
-            {
+                var deserializer = CreateDeserializer(baggageTable, connection, transaction);
+                yield return deserializer.Deserialize(message);
 
             }
         }
@@ -705,68 +495,6 @@ COMMIT TRANSACTION;";
             }
         }
 
-        object Convert(Type target, string value)
-        {
-            if (target.IsArray)
-            {
-                var elementType = target.GetElementType();
-
-                if (elementType == typeof(byte))
-                {
-                    var asbyte = System.Convert.FromBase64String(value);
-                    return asbyte;
-                }
-                else if (elementType.IsEnum)
-                {
-                    var values = value.Split(',');
-                    var cast = typeof(Enumerable).GetMethod("Cast").MakeGenericMethod(elementType);
-                    var toarray = typeof(Enumerable).GetMethod("ToArray").MakeGenericMethod(elementType);
-                    return toarray.Invoke(null, new[] { cast.Invoke(null, new[] { values.Select(x => Enum.Parse(elementType, x)) }) });
-                }
-                else if (elementType.IsPrimitive)
-                {
-                    var values = value.Split(',');
-
-                    return values.Select(x =>
-                    {
-                        var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
-                        return parse.Invoke(null, new[] { value });
-                    }).ToArray();
-                }
-                else
-                {
-                    throw new InvalidOperationException();
-                }
-            }
-            else if (target.IsEnum)
-            {
-                return Enum.Parse(target, value);
-            }
-            else if (target == typeof(string))
-            {
-                return value;
-            }
-            else
-            {
-                if (target.IsGenericType && target.GetGenericTypeDefinition() == typeof(Nullable<>))
-                {
-                    var nullabletarget = target.GetGenericArguments()[0];
-                    var parse = nullabletarget.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
-                    return Activator.CreateInstance(target, parse.Invoke(null, new[] { value }));
-                }
-                else
-                {
-                    var parse = target.GetMethod("Parse", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(string) }, null);
-                    return parse.Invoke(null, new[] { value });
-                }
-            }
-        }
-
-        T DeserializeXml<T>(string xml, string baggageTable, IDbConnection connection, IDbTransaction transaction)
-        {
-            return (T)DeserializeXml(typeof(T), xml, baggageTable, connection, transaction);
-        }
-
         public void Execute(string sql)
         {
             using (var connection = GetConnection())
@@ -781,7 +509,7 @@ COMMIT TRANSACTION;";
         }
     }
 
-    
+
 
     public static class JsonConvert
     {
