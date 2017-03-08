@@ -1,17 +1,12 @@
 ﻿using MachinaAurum.Collections.SqlServer.Serializers;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using System.Xml;
-using System.Xml.Serialization;
 
 namespace MachinaAurum.Collections.SqlServer
 {
@@ -70,6 +65,61 @@ ELSE
 
                         reader.Close();
                     }
+                }
+            }
+        }
+
+        public TValue GetKeyValue<TKey, TValue>(string table, string columnKey, string columnValue, TKey key)
+        {
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = $@"SELECT [{columnKey}], [{columnValue}] FROM {table} WHERE [{columnKey}] = @key";
+                    AddWithValue(command, "key", key);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            TValue value = default(TValue);
+                            if (NeedDeserialization<TValue>())
+                            {
+                                var jsonFromDB = (string)reader.GetValue(1);
+                                value = JsonConvert.Deserialize<TValue>(jsonFromDB);
+                            }
+                            else
+                            {
+                                value = (TValue)reader.GetValue(1);
+                            }
+
+                            return value;
+                        }
+                    }
+                }
+            }
+
+            return default(TValue);
+        }
+
+        public void Prepare<TKey, TValue>(string table, string columnKey, string columnValue)
+        {
+            var pktablename = Regex.Replace(table, @"[^\w]", "");
+            var pkcolumnKey = Regex.Replace(columnKey, @"[^\w]", "");
+
+            var keycolumnType = GetColumnKeyType<TKey>();
+            var valueColumnType = GetColumnValueType<TValue>();
+
+            using (var connection = GetConnection())
+            {
+                GuaranteeOpen(connection);
+
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = $"CREATE TABLE {table}([{columnKey}] {keycolumnType} not null, [{columnValue}] {valueColumnType}, CONSTRAINT PK_{pktablename}_{pkcolumnKey} PRIMARY KEY CLUSTERED ([{columnKey}]))";
+                    command.ExecuteNonQuery();
                 }
             }
         }

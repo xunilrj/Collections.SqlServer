@@ -72,6 +72,15 @@ namespace SqlDictionaryTest
             dic4["1"] = new SomeDto() { Id = 2, Name = "SomeName" };
             dic4["1"] = new SomeDto() { Id = 3, Name = "SomeName" };
 
+
+            var dic5 = new SqlNoMemoryDictionary<int, int>();
+            dic5.Prepare(connectionString, "lazyintint", keyName, valueName);
+            dic5.Clear();
+            dic5.Add(1, 2);
+            dic5.Remove(1);
+            dic5[1] = 3;
+            dic5[1] = 4;
+
             Console.WriteLine("OK!");
         }
 

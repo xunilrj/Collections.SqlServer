@@ -44,6 +44,16 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             throw new NotImplementedException();
         }
 
+        public TValue GetKeyValue<TKey, TValue>(string table, string columnKey, string columnValue, TKey key)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Prepare<TKey, TValue>(string table, string keyColumn, string valueColumn)
+        {
+            throw new NotImplementedException();
+        }
+
         public bool Remove<TKey>(string table, string keyColumn, TKey key, Action onSuccess)
         {
             Inner.Remove((TInnerKey)(object)key);
@@ -132,6 +142,16 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         }
 
         public IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IEnumerable<object>> process)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Prepare<TKey, TValue>(string table, string keyColumn, string valueColumn)
+        {
+            throw new NotImplementedException();
+        }
+
+        public TValue GetKeyValue<TKey, TValue>(string table, string columnKey, string columnValue, TKey key)
         {
             throw new NotImplementedException();
         }

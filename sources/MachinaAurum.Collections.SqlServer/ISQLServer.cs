@@ -8,7 +8,10 @@ namespace MachinaAurum.Collections.SqlServer
     {
         void Execute(string sql);
 
+        void Prepare<TKey, TValue>(string table, string keyColumn, string valueColumn);
         void Start<TKey, TValue>(string table, string keyColumn, string valueColumn, Action<TKey, TValue> addKeyValue);
+
+        TValue GetKeyValue<TKey, TValue>(string table, string columnKey, string columnValue, TKey key);
         void Add<TKey, TValue>(string table, string keyColumn, string valueColumn, TKey key, TValue value, Action onSuccess, Action onError);
         void Clear(string table, Action onSuccess);
         bool Remove<TKey>(string table, string keyColumn, TKey key, Action onSuccess);
@@ -16,7 +19,7 @@ namespace MachinaAurum.Collections.SqlServer
 
         void Enqueue<TItem>(string serviceOrigin, string serviceDestination, string contract, string messageType, string baggageTable, IEnumerable<TItem> item);
         TItem Dequeue<TItem>(string queue, string baggageTable);
-        
+
         IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IEnumerable<object>> processGroup);
     }
 }
