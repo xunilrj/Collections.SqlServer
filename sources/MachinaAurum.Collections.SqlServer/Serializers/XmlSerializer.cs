@@ -100,40 +100,8 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
                 foreach (dynamic i in items)
                 {
                     writer.WriteStartElement("item");
-
-                    if (genericArguments[0].IsPrimitive)
-                    {
-                        writer.WriteAttributeString("key", ToString(genericArguments[0], i.Key));
-                    }
-                    else if (genericArguments[0] == typeof(string))
-                    {
-                        writer.WriteAttributeString("key", ToString(genericArguments[0], i.Key));
-                    }
-
-                    if (genericArguments[1].IsPrimitive)
-                    {
-                        writer.WriteAttributeString("value", ToString(genericArguments[1], i.Value));
-                    }
-                    else if (genericArguments[1] == typeof(string))
-                    {
-                        writer.WriteStartElement("string");
-                        writer.WriteCData(i.Value);
-                        writer.WriteEndElement();
-                    }
-                    else if (genericArguments[1].IsArray && genericArguments[1].GetElementType() == typeof(byte))
-                    {
-                        byte[] data = (byte[])i.Value;
-
-                        var baggageid = Guid.NewGuid();
-                        var uri = $"baggage://{baggageid}";
-                        baggage.Add(uri, data);
-
-                        writer.WriteStartElement("value");
-                        writer.WriteAttributeString("uri", uri);
-                        //writer.WriteCData(System.Convert.ToBase64String(data));
-                        writer.WriteEndElement();
-                    }
-
+                    WriteKey(writer, depth, baggage, genericArguments, i);
+                    WriteValue(writer, depth, baggage, genericArguments, i);
                     writer.WriteEndElement();
                 }
 
@@ -148,7 +116,7 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
                 var propertyValue = property.GetValue(item);
                 if (property.CanRead && propertyValue != null)
                 {
-                    if (WriteAsAttribute(property))
+                    if (WriteAsAttribute(property.PropertyType))
                     {
                         writer.WriteAttributeString(property.Name, ToString(property.PropertyType, propertyValue));
                     }
@@ -167,11 +135,62 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
             writer.WriteEndElement();
         }
 
-        bool WriteAsAttribute(PropertyInfo info)
+        private void WriteValue(XmlTextWriter writer, int depth, IDictionary<string, byte[]> baggage, Type[] genericArguments, dynamic i)
         {
-            if (info.PropertyType.IsArray)
+            if (genericArguments[1] == typeof(string))
             {
-                var elementType = info.PropertyType.GetElementType();
+                writer.WriteStartElement("value");
+                writer.WriteCData(i.Value);
+                writer.WriteEndElement();
+            }
+            else if (WriteAsAttribute(genericArguments[1]))
+            {
+                writer.WriteAttributeString("value", ToString(genericArguments[1], i.Value));
+            }
+            else if (genericArguments[1].IsArray && genericArguments[1].GetElementType() == typeof(byte))
+            {
+                byte[] data = (byte[])i.Value;
+
+                var baggageid = Guid.NewGuid();
+                var uri = $"baggage://{baggageid}";
+                baggage.Add(uri, data);
+
+                writer.WriteStartElement("value");
+                writer.WriteAttributeString("uri", uri);
+                //writer.WriteCData(System.Convert.ToBase64String(data));
+                writer.WriteEndElement();
+            }
+            else
+            {
+                writer.WriteStartElement("value");
+                WriteObject(null, i.Value, writer, depth + 1, baggage);
+                writer.WriteEndElement();
+            }
+        }
+
+        private void WriteKey(XmlTextWriter writer, int depth, IDictionary<string, byte[]> baggage, Type[] genericArguments, dynamic i)
+        {
+            if (WriteAsAttribute(genericArguments[0]))
+            {
+                writer.WriteAttributeString("key", ToString(genericArguments[0], i.Key));
+            }
+            else if (genericArguments[0] == typeof(string))
+            {
+                writer.WriteAttributeString("key", ToString(genericArguments[0], i.Key));
+            }
+            else
+            {
+                writer.WriteStartElement("key");
+                WriteObject(null, i.Key, writer, depth + 1, baggage);
+                writer.WriteEndElement();
+            }
+        }
+
+        bool WriteAsAttribute(Type type)
+        {
+            if (type.IsArray)
+            {
+                var elementType = type.GetElementType();
                 if (elementType.IsEnum)
                 {
                     return true;
@@ -193,31 +212,31 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
                     return false;
                 }
             }
-            else if (info.PropertyType.IsGenericType && info.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+            else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
                 return true;
             }
-            else if (info.PropertyType.IsPrimitive)
+            else if (type.IsPrimitive)
             {
                 return true;
             }
-            else if (info.PropertyType.IsEnum)
+            else if (type.IsEnum)
             {
                 return true;
             }
-            else if (info.PropertyType == typeof(string))
+            else if (type == typeof(string))
             {
                 return true;
             }
-            else if (info.PropertyType == typeof(DateTime))
+            else if (type == typeof(DateTime))
             {
                 return true;
             }
-            else if (info.PropertyType == typeof(DateTimeOffset))
+            else if (type == typeof(DateTimeOffset))
             {
                 return true;
             }
-            else if (info.PropertyType == typeof(Guid))
+            else if (type == typeof(Guid))
             {
                 return true;
             }

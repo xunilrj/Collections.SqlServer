@@ -1,9 +1,6 @@
 ﻿using MachinaAurum.Collections.SqlServer.Serializers;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 
 namespace MachinaAurum.Collections.SqlServer.Tests
@@ -120,7 +117,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             var xmlSerializer = new XmlSerializer();
             var xml = xmlSerializer.SerializeXml(dto);
 
-            Assert.Equal("<DictionariesDto><StringString><item key=\"key1\"><string><![CDATA[value1]]></string></item><item key=\"key2\"><string><![CDATA[value2]]></string></item></StringString><StringInt><item key=\"key1\" value=\"10\" /><item key=\"key2\" value=\"20\" /></StringInt><IntString><item key=\"1\"><string><![CDATA[value1]]></string></item><item key=\"2\"><string><![CDATA[value2]]></string></item></IntString><IntInt><item key=\"1\" value=\"10\" /><item key=\"2\" value=\"20\" /></IntInt></DictionariesDto>", xml);
+            Assert.Equal("<DictionariesDto><StringString><item key=\"key1\"><value><![CDATA[value1]]></value></item><item key=\"key2\"><value><![CDATA[value2]]></value></item></StringString><StringInt><item key=\"key1\" value=\"10\" /><item key=\"key2\" value=\"20\" /></StringInt><IntString><item key=\"1\"><value><![CDATA[value1]]></value></item><item key=\"2\"><value><![CDATA[value2]]></value></item></IntString><IntInt><item key=\"1\" value=\"10\" /><item key=\"2\" value=\"20\" /></IntInt></DictionariesDto>", xml);
         }
 
         [Fact]
@@ -148,7 +145,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             var xmlSerializer = new XmlSerializer();
             var xml = xmlSerializer.SerializeXml(dto);
 
-            Assert.Equal("<DictionariesEnumDto><SomeEnumString><item><string><![CDATA[SOMEVALUE1]]></string></item><item><string><![CDATA[SOMEVALUE2]]></string></item></SomeEnumString><StringSomeEnum><item key=\"SOMEVALUE1\" /><item key=\"SOMEVALUE2\" /></StringSomeEnum><SomeEnumSomeEnum><item /><item /></SomeEnumSomeEnum></DictionariesEnumDto>", xml);
+            Assert.Equal("<DictionariesEnumDto><SomeEnumString><item key=\"EnumValue1\"><value><![CDATA[SOMEVALUE1]]></value></item><item key=\"EnumValue2\"><value><![CDATA[SOMEVALUE2]]></value></item></SomeEnumString><StringSomeEnum><item key=\"SOMEVALUE1\" value=\"EnumValue1\" /><item key=\"SOMEVALUE2\" value=\"EnumValue2\" /></StringSomeEnum><SomeEnumSomeEnum><item key=\"EnumValue1\" value=\"EnumValue1\" /><item key=\"EnumValue2\" value=\"EnumValue2\" /></SomeEnumSomeEnum></DictionariesEnumDto>", xml);
         }
 
         [Fact]
@@ -226,28 +223,28 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             Assert.Matches("<ClassWithArrayOfClass><Leafs><LeafDto Id=\"2\" /><LeafDto Id=\"3\" /></Leafs></ClassWithArrayOfClass>", xml);
         }
 
-        //[Fact]
-        //public void MustWorkForDictionaryWithClass()
-        //{
-        //    var dto = new DictionaryWithClass()
-        //    {
-        //        StringLeafDto = new Dictionary<string, LeafDto>()
-        //        {
-        //            ["LEAF1"] = new LeafDto() { Id = 5 },
-        //            ["LEAF2"] = new LeafDto() { Id = 6 }
-        //        },
-        //        LeafDtoString = new Dictionary<LeafDto, string>()
-        //        {
-        //            [new LeafDto() { Id = 5 }] = "VALUE1",
-        //            [new LeafDto() { Id = 6 }] = "VALUE2"
-        //        }
-        //    };
+        [Fact]
+        public void MustWorkForDictionaryWithClass()
+        {
+            var dto = new DictionaryWithClass()
+            {
+                StringLeafDto = new Dictionary<string, LeafDto>()
+                {
+                    ["LEAF1"] = new LeafDto() { Id = 5 },
+                    ["LEAF2"] = new LeafDto() { Id = 6 }
+                },
+                LeafDtoString = new Dictionary<LeafDto, string>()
+                {
+                    [new LeafDto() { Id = 5 }] = "VALUE1",
+                    [new LeafDto() { Id = 6 }] = "VALUE2"
+                }
+            };
 
-        //    var xmlSerializer = new XmlSerializer();
-        //    var xml = xmlSerializer.SerializeXml(dto);
+            var xmlSerializer = new XmlSerializer();
+            var xml = xmlSerializer.SerializeXml(dto);
 
-        //    Assert.Matches("<DictionaryWithClass><StringLeafDto><item key=\"LEAF1\" /><item key=\"LEAF2\" /></StringLeafDto><LeafDtoString><item><string><![CDATA[VALUE1]]></string></item><item><string><![CDATA[VALUE2]]></string></item></LeafDtoString></DictionaryWithClass>", xml);
-        //}
+            Assert.Equal("<DictionaryWithClass><StringLeafDto><item key=\"LEAF1\"><value><LeafDto Id=\"5\" /></value></item><item key=\"LEAF2\"><value><LeafDto Id=\"6\" /></value></item></StringLeafDto><LeafDtoString><item><key><LeafDto Id=\"5\" /></key><value><![CDATA[VALUE1]]></value></item><item><key><LeafDto Id=\"6\" /></key><value><![CDATA[VALUE2]]></value></item></LeafDtoString></DictionaryWithClass>", xml);
+        }
     }
 
     public class PrimitivesDto
