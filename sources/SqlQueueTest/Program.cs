@@ -214,6 +214,17 @@ namespace SqlQueueTest
                 Debug.Assert(false);
             });
 
+            //VERY BIG <ESSAGE
+
+            var bigdto = new ItemDto(1)
+            {
+                Text = new string('a', 2000)
+            };
+            queue.Enqueue(bigdto);
+            bigdto = queue.Dequeue<ItemDto>();
+
+            Debug.Assert(bigdto.Text.Length == 2000);
+
             Console.WriteLine("OK!");
             //Console.ReadLine();
         }

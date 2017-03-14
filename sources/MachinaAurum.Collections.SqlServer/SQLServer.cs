@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -403,12 +404,7 @@ COMMIT TRANSACTION;";
                                 return default(TItem);
                             }
 
-                            var buffer = new byte[4000];
-                            if (reader.IsDBNull(13) == false)
-                            {
-                                var size = reader.GetBytes(13, 0, buffer, 0, 4000);
-                                xml = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
-                            }
+                            xml = ReadMessageBody(reader);
                         }
 
                         reader.Close();
@@ -498,13 +494,8 @@ COMMIT TRANSACTION;";
                     {
                         foundMessage = true;
                         var body = "";
-                        var buffer = new byte[4000];
-                        if (reader.IsDBNull(13) == false)
-                        {
-                            var size = reader.GetBytes(13, 0, buffer, 0, 4000);
-                            body = System.Text.Encoding.Unicode.GetString(buffer, 2, (int)(size - 2));
-                            toProcess.Add(body);
-                        }
+                        body = ReadMessageBody(reader);
+                        toProcess.Add(body);
                     }
                 }
 
@@ -512,6 +503,31 @@ COMMIT TRANSACTION;";
             }
 
             return toProcess;
+        }
+
+        private static string ReadMessageBody(IDataReader reader)
+        {
+            var buffer = new byte[4000];
+
+            using (var mem = new MemoryStream())
+            {
+                if (reader.IsDBNull(13) == false)
+                {
+                    bool read = true;
+                    while (read)
+                    {
+                        var sizeread = reader.GetBytes(13, mem.Position, buffer, 0, 4000);
+                        if (sizeread < 1)
+                        {
+                            break;
+                        }
+                        mem.Write(buffer, 0, (int)sizeread);
+                    }
+                    return System.Text.Encoding.Unicode.GetString(mem.ToArray(), 2, (int)mem.Position - 2);
+                }
+            }
+
+            return string.Empty;
         }
 
         public IEnumerable<object> ParseMessages(IDbConnection connection, IDbTransaction transaction, IEnumerable<string> messages, string baggageTable)
