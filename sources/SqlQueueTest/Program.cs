@@ -35,7 +35,7 @@ namespace SqlQueueTest
             var parameters = new SqlQueueParameters(connectionString, serviceOrigin, serviceDestination, contract, messageType, queueOrigin, queueDestination, baggageTable);
             var queue = new SqlQueue(parameters);
             queue.CreateObjects();
-
+            queue.EnableQueue();
             queue.Clear();
 
             var item1 = new ItemDto(1)
@@ -214,17 +214,22 @@ namespace SqlQueueTest
                 Debug.Assert(false);
             });
 
-            //VERY BIG <ESSAGE
+            //VERY BIG mESSAGE
 
             var bigdto = new ItemDto(1)
             {
-                Text = new string('a', 2000)
+                Text = new string('a', 2000 * 1000 )
             };
             queue.Enqueue(bigdto);
             bigdto = queue.Dequeue<ItemDto>();
 
-            Debug.Assert(bigdto.Text.Length == 2000);
+            Debug.Assert(bigdto.Text.Length == 2000 * 1000);
 
+            var emptyDicMsg = new EmptyDicDomainEventArgs();
+            queue.Enqueue(emptyDicMsg);
+            emptyDicMsg = queue.Dequeue<EmptyDicDomainEventArgs>();
+
+            Console.WriteLine("");
             Console.WriteLine("OK!");
             //Console.ReadLine();
         }
@@ -458,6 +463,16 @@ namespace SqlQueueTest
         }
     }
 
+    [Serializable]
+    public class EmptyDicDomainEventArgs
+    {
+        public Dictionary<string,string> Properties { get; set; }
+
+        public EmptyDicDomainEventArgs()
+        {
+            Properties = new Dictionary<string, string>();
+        }
+    }
 
     public class NonSerializableDto
     {

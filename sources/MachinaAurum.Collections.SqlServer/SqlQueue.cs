@@ -148,5 +148,19 @@ END");
                 }
             });
         }
+
+        public void EnableQueue(bool enabled = true)
+        {
+            if(enabled)
+            {
+                this.Server.Execute($"ALTER QUEUE dbo.{Parameters.QueueOrigin} WITH STATUS = ON");
+                this.Server.Execute($"ALTER QUEUE dbo.{Parameters.QueueDestination} WITH STATUS = ON");
+            }
+            else
+            {
+                this.Server.Execute($"ALTER QUEUE dbo.{Parameters.QueueOrigin} WITH STATUS = OFF");
+                this.Server.Execute($"ALTER QUEUE dbo.{Parameters.QueueDestination} WITH STATUS = OFF");
+            }
+        }
     }
 }

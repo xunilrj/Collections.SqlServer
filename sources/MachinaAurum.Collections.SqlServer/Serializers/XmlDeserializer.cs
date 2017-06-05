@@ -75,7 +75,15 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
                 }
                 else
                 {
-                    type = parent.GetType().GetProperty(propertyName).PropertyType;
+                    if (reader.MoveToAttribute("TYPE"))
+                    {
+                        type = Type.GetType(reader.Value);
+                        reader.MoveToElement();
+                    }
+                    else
+                    {
+                        type = parent.GetType().GetProperty(propertyName).PropertyType;
+                    }
                 }
 
                 if (type.IsArray)
@@ -140,7 +148,7 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
                     var value = reader.Value;
 
                     var property = type.GetProperty(attributeName);
-                    if (property.CanWrite)
+                    if (property != null && property.CanWrite)
                     {
                         property.SetValue(obj, Convert(property.PropertyType, value));
                     }

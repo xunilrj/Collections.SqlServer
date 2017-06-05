@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 
 namespace MachinaAurum.Collections.SqlServer.Tests
 {
@@ -25,6 +26,11 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         }
 
         public TItem Dequeue<TItem>(string queue, string baggageTable)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IDbConnection, IDbTransaction, IEnumerable<object>> processGroup)
         {
             throw new NotImplementedException();
         }
@@ -152,6 +158,11 @@ namespace MachinaAurum.Collections.SqlServer.Tests
         }
 
         public TValue GetKeyValue<TKey, TValue>(string table, string columnKey, string columnValue, TKey key)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<object> DequeueGroup(string queue, string baggageTable, Action<IDbConnection, IDbTransaction, IEnumerable<object>> processGroup)
         {
             throw new NotImplementedException();
         }

@@ -199,5 +199,16 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             Assert.Equal("VALUE1", dto.LeafDtoString[first]);
             Assert.Equal("VALUE2", dto.LeafDtoString[second]);
         }
+
+        [Fact]
+        public void MustWorkWithClassPointingToABaseClass()
+        {
+            var xml = "<ClassUsingBaseClass><Root TYPE=\"MachinaAurum.Collections.SqlServer.Tests.ClassWithBaseDto, MachinaAurum.Collections.SqlServer.Tests\" Value=\"14\" /></ClassUsingBaseClass>";
+
+            var deserializer = new XmlDeserializer();
+            var dto = deserializer.Deserialize<ClassUsingBaseClass>(xml);
+
+            Assert.IsType<ClassWithBaseDto>(dto.Root);
+        }
     }
 }

@@ -55,6 +55,11 @@ namespace MachinaAurum.Collections.SqlServer.Serializers
 
                 string name = currentProperty.Name;
                 writer.WriteStartElement(name);
+
+                if(currentProperty.PropertyType != item.GetType())
+                {
+                    writer.WriteAttributeString("TYPE", $"{item.GetType().FullName}, {item.GetType().Assembly.GetName().Name}");
+                }
             }
 
             if (item.GetType().IsArray)

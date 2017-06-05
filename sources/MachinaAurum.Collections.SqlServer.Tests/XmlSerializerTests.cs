@@ -204,7 +204,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             var xmlSerializer = new XmlSerializer();
             var xml = xmlSerializer.SerializeXml(dto);
 
-            Assert.Matches("<ClassWithBaseDto><Leaf Id=\"12\" /></ClassWithBaseDto>", xml);
+            Assert.Matches("<ClassWithBaseDto Value=\"0\"><Leaf Id=\"12\" /></ClassWithBaseDto>", xml);
         }
 
         [Fact]
@@ -246,6 +246,23 @@ namespace MachinaAurum.Collections.SqlServer.Tests
             var xml = xmlSerializer.SerializeXml(dto);
 
             Assert.Equal("<DictionaryWithClass><StringLeafDto><item key=\"LEAF1\"><value><LeafDto Id=\"5\" /></value></item><item key=\"LEAF2\"><value><LeafDto Id=\"6\" /></value></item></StringLeafDto><LeafDtoString><item><key><LeafDto Id=\"5\" /></key><value><![CDATA[VALUE1]]></value></item><item><key><LeafDto Id=\"6\" /></key><value><![CDATA[VALUE2]]></value></item></LeafDtoString></DictionaryWithClass>", xml);
+        }
+
+        [Fact]
+        public void MustWorkWithClassPointingToABaseClass()
+        {
+            var dto = new ClassUsingBaseClass()
+            {
+                Root = new ClassWithBaseDto()
+                {
+                    Value = 14
+                }
+            };
+
+            var xmlSerializer = new XmlSerializer();
+            var xml = xmlSerializer.SerializeXml(dto);
+
+            Assert.Equal("<ClassUsingBaseClass><Root TYPE=\"MachinaAurum.Collections.SqlServer.Tests.ClassWithBaseDto, MachinaAurum.Collections.SqlServer.Tests\" Value=\"14\" /></ClassUsingBaseClass>", xml);
         }
     }
 
@@ -330,7 +347,7 @@ namespace MachinaAurum.Collections.SqlServer.Tests
     [Serializable]
     public class ClassWithBaseDto : RootDto
     {
-
+        public int Value { get; set; }
     }
 
     [Serializable]
@@ -344,5 +361,11 @@ namespace MachinaAurum.Collections.SqlServer.Tests
     {
         public Dictionary<string, LeafDto> StringLeafDto { get; set; }
         public Dictionary<LeafDto, string> LeafDtoString { get; set; }
+    }
+
+    [Serializable]
+    public class ClassUsingBaseClass
+    {
+        public RootDto Root { get; set; }
     }
 }
